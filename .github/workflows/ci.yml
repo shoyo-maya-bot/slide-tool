@@ -1,0 +1,34 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  slides:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Japanese fonts
+        run: sudo apt-get update -q && sudo apt-get install -y -q fonts-noto-cjk
+      - run: npm install --no-audit --no-fund
+      - run: npx playwright install chromium
+      - name: unit tests
+        run: npm test
+      - name: lint (text volume, titles, SVG)
+        run: npm run lint
+      - name: overflow check (rendered)
+        run: npm run check:overflow
+      - name: build PDF / PPTX / catalog
+        run: npm run pdf && npm run pptx && npm run catalog
+      - uses: actions/upload-artifact@v4
+        with:
+          name: slides
+          path: dist/

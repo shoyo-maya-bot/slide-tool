@@ -1,0 +1,5 @@
+* text=auto eol=lf
+*.cmd text eol=crlf working-tree-encoding=cp932
+*.png binary
+*.pdf binary
+*.pptx binary

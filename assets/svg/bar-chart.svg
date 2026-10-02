@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" font-family="Noto Sans JP, Noto Sans CJK JP, Yu Gothic, Meiryo, sans-serif">
+  <title>工程別の指摘件数（架空のデータ）</title>
+  <g stroke="#d1d5db"><line x1="80" y1="40" x2="80" y2="300"/><line x1="80" y1="300" x2="600" y2="300"/></g>
+  <g fill="#1d4ed8">
+    <rect x="120" y="140" width="80" height="160"/>
+    <rect x="240" y="80" width="80" height="220"/>
+    <rect x="360" y="180" width="80" height="120"/>
+    <rect x="480" y="230" width="80" height="70"/>
+  </g>
+  <g font-size="18" text-anchor="middle" fill="#1f2937">
+    <text x="160" y="130">32</text><text x="280" y="70">44</text><text x="400" y="170">24</text><text x="520" y="220">14</text>
+    <text x="160" y="328">要件定義</text><text x="280" y="328">基本設計</text><text x="400" y="328">詳細設計</text><text x="520" y="328">製造</text>
+  </g>
+  <text x="20" y="30" font-size="16" fill="#6b7280">件</text>
+</svg>

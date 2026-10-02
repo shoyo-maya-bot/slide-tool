@@ -1,0 +1,20 @@
+{
+  "maxBullets": 6,
+  "maxBodyChars": 260,
+  "maxTitleChars": 32,
+  "maxDepth": 2,
+  "layouts": [
+    "title",
+    "agenda",
+    "section",
+    "message",
+    "big-number"
+  ],
+  "noTitleLayouts": [
+    "title",
+    "section",
+    "big-number"
+  ],
+  "bannedTerms": [],
+  "bannedTermsNote": "社名・顧客名・システム名・個人名など、資料に出してはいけない語を足す（大文字小文字は区別しない）"
+}

@@ -1,0 +1,4 @@
+# Marp CLI の設定（npm run の各スクリプトが使う）
+html: true            # スライド内の <div class="..."> を使うため
+allowLocalFiles: true # 画像・SVG をローカルから読む（PDF / PPTX 出力で必要）
+themeSet: build/themes

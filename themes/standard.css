@@ -1,0 +1,103 @@
+/* @theme standard */
+/*
+ * 標準テーマ（16:9 / 1280x720）. レイアウトは _class で選ぶ（docs/layouts.md）.
+ * 色・余白は変数で持ち、細かい調整は Tailwind のユーティリティ（npm run theme でこの後ろに追記される）で行う.
+ */
+@import 'default';
+
+:root {
+  --c-primary: #1d4ed8;
+  --c-primary-weak: #dbeafe;
+  --c-accent: #ea580c;
+  --c-text: #1f2937;
+  --c-muted: #6b7280;
+  --c-line: #d1d5db;
+  --c-bg: #ffffff;
+  --c-surface: #f3f4f6;
+  --pad-x: 64px;
+  --pad-y: 48px;
+  width: 1280px;
+  height: 720px;
+  padding: var(--pad-y) var(--pad-x);
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-family: "Noto Sans JP", "Noto Sans CJK JP", "Yu Gothic", "Meiryo", sans-serif;
+  font-size: 26px;
+  line-height: 1.6;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+
+h1 { font-size: 40px; color: var(--c-primary); margin: 0 0 24px; padding-bottom: 8px; border-bottom: 3px solid var(--c-primary); }
+h2 { font-size: 30px; color: var(--c-text); margin: 0 0 16px; }
+h3 { font-size: 26px; color: var(--c-primary); margin: 0 0 8px; }
+strong { color: var(--c-accent); }
+ul, ol { margin: 0; padding-left: 1.2em; }
+li { margin: 4px 0; }
+li > ul, li > ol { font-size: 0.88em; }
+table { border-collapse: collapse; font-size: 22px; margin: 0; }
+th { background: var(--c-primary); color: #fff; }
+th, td { border: 1px solid var(--c-line); padding: 6px 14px; }
+tr:nth-child(even) td { background: var(--c-surface); }
+blockquote { border-left: 6px solid var(--c-primary); background: var(--c-primary-weak); margin: 0; padding: 12px 20px; color: var(--c-text); }
+code { background: var(--c-surface); border-radius: 4px; padding: 0 6px; }
+img { max-width: 100%; max-height: 100%; }
+footer, header { color: var(--c-muted); font-size: 16px; }
+section::after { font-size: 16px; color: var(--c-muted); } /* ページ番号 */
+
+/* --- レイアウト ---------------------------------------------------------- */
+
+/* 1 表紙 */
+section.title { justify-content: center; background: linear-gradient(135deg, var(--c-primary) 0%, #1e3a8a 100%); color: #fff; }
+section.title h1 { color: #fff; border: none; font-size: 54px; margin-bottom: 12px; }
+section.title p { color: #e0e7ff; font-size: 24px; margin: 4px 0; }
+section.title::after { display: none; }
+
+/* 2 目次 */
+section.agenda ol { font-size: 30px; line-height: 2; }
+section.agenda li::marker { color: var(--c-primary); font-weight: bold; }
+
+/* 3 中扉 */
+section.section { justify-content: center; background: var(--c-primary-weak); }
+section.section h1 { font-size: 48px; border: none; }
+section.section p { color: var(--c-muted); }
+
+/* 4 キーメッセージ */
+section.message { justify-content: center; text-align: center; }
+section.message h1 { border: none; font-size: 46px; }
+section.message p { font-size: 28px; color: var(--c-muted); }
+
+/* 5 大きな数字 */
+section.big-number { justify-content: center; align-items: center; text-align: center; }
+section.big-number h1 { border: none; font-size: 30px; color: var(--c-muted); }
+section.big-number .num { font-size: 140px; font-weight: 800; color: var(--c-primary); line-height: 1.1; }
+section.big-number .num small { font-size: 48px; }
+
+/* 共通の部品（カード・列・番号付きの手順） */
+.cols { display: grid; gap: 32px; flex: 1; min-height: 0; }
+.cols-2 { grid-template-columns: 1fr 1fr; }
+.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+.cols-4 { grid-template-columns: repeat(4, 1fr); }
+.cols-7-5 { grid-template-columns: 7fr 5fr; }
+.card { background: var(--c-surface); border-radius: 12px; padding: 20px 24px; border-top: 6px solid var(--c-primary); font-size: 22px; }
+.card h3 { margin-top: 0; }
+.card.accent { border-top-color: var(--c-accent); }
+.card.muted { border-top-color: var(--c-line); }
+.kpi { text-align: center; }
+.kpi .value { font-size: 56px; font-weight: 800; color: var(--c-primary); line-height: 1.2; }
+.kpi .label { color: var(--c-muted); font-size: 20px; }
+.steps { display: flex; gap: 16px; align-items: stretch; }
+.steps > div { flex: 1; background: var(--c-surface); border-radius: 12px; padding: 16px 20px; font-size: 20px; position: relative; }
+.steps > div b { display: block; color: var(--c-primary); font-size: 22px; margin-bottom: 6px; }
+.steps > div:not(:last-child)::after { content: "▶"; position: absolute; right: -16px; top: 40%; color: var(--c-primary); font-size: 16px; }
+.timeline { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border-top: 4px solid var(--c-primary); margin-top: 32px; }
+.timeline > div { position: relative; padding: 24px 12px 0; font-size: 20px; }
+.timeline > div::before { content: ""; position: absolute; top: -12px; left: 12px; width: 20px; height: 20px; border-radius: 50%; background: var(--c-primary); }
+.timeline > div b { display: block; color: var(--c-primary); }
+.matrix { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 12px; flex: 1; min-height: 0; }
+.matrix > div { background: var(--c-surface); border-radius: 8px; padding: 12px 18px; font-size: 20px; }
+.matrix > div.hi { background: var(--c-primary-weak); outline: 3px solid var(--c-primary); }
+.note { color: var(--c-muted); font-size: 18px; }
+.figure { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+.figure img, .figure svg { max-height: 100%; }
