@@ -3,8 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "description": "Marp + Tailwind でスライドを Markdown から作る（レイアウト集・チェック・PDF / PPTX 出力）",
+  "license": "MIT",
   "type": "module",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "theme": "tailwindcss -i themes/tailwind.input.css -o build/tailwind.css --minify && node scripts/build-theme.mjs",
     "lint": "node scripts/lint-slides.mjs slides layouts",
