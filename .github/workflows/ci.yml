@@ -28,7 +28,7 @@ jobs:
         run: npm run check:overflow
       - name: build PDF / PPTX / catalog
         run: npm run pdf && npm run pptx && npm run catalog
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: slides
           path: dist/
