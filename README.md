@@ -94,3 +94,8 @@ docs/          レイアウト一覧・作成手順
 npm test          # node:test（チェックのスクリプトのテスト）
 npm run lint
 ```
+
+## セキュリティ・ライセンス
+
+- 脆弱性を見つけたら、公開の Issue ではなく [SECURITY.md](SECURITY.md) の方法で知らせてください
+- ライセンスは [MIT](LICENSE) です
