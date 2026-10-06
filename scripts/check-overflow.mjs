@@ -2,7 +2,8 @@
 // 描画してはみ出しを検出する. Marp CLI で --template bare の HTML を作ってから実行する（npm run check:overflow）.
 //   node scripts/check-overflow.mjs build/check [--format json]
 // 検出: スライドの外にはみ出した要素 / 内容がスライドより高い / 要素の中で文字が溢れている（scroll > client）
-// 終了コード: 0 問題なし / 1 はみ出しあり / 2 引数の誤り / 3 ブラウザを起動できない
+// 終了コード: 0 問題なし / 1 はみ出しあり / 2 引数の誤り / 3 ブラウザを起動できない・同梱フォントを読み込めない
+// 同梱フォント（テーマの @font-face）を宣言しているのに 1 つも読み込めなかったときは、PC のフォントで測った結果になるので失敗にする
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -45,6 +46,12 @@ export function inspectPage() {
   return { slides: sections.length, results };
 }
 
+/** ブラウザ内で実行: @font-face で宣言したフォントの数と、読み込めた数 */
+export function inspectFonts() {
+  const faces = [...document.fonts];
+  return { declared: faces.length, loaded: faces.filter((x) => x.status === "loaded").length };
+}
+
 function htmlFiles(p) {
   if (!existsSync(p)) return [];
   if (statSync(p).isFile()) return p.endsWith(".html") ? [p] : [];
@@ -58,8 +65,13 @@ export async function check(files, launch) {
     const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
     for (const f of files) {
       await page.goto(pathToFileURL(resolve(f)).href);
-      await page.evaluate(() => document.fonts.ready);
-      report.push({ file: f, ...(await page.evaluate(inspectPage)) });
+      // レイアウトを確定させてから、使う字のフォント（unicode-range ごと）の読み込みを待つ
+      await page.evaluate(async () => {
+        document.body.getBoundingClientRect();
+        await document.fonts.ready;
+      });
+      const fonts = await page.evaluate(inspectFonts);
+      report.push({ file: f, fonts, ...(await page.evaluate(inspectPage)) });
     }
   } finally {
     await browser.close();
@@ -84,6 +96,11 @@ async function main(argv) {
   }
   const exe = process.env.CHROMIUM_PATH;
   const report = await check(files, () => chromium.launch(exe ? { executablePath: exe } : {}));
+  const noFont = report.filter((r) => r.fonts.declared > 0 && r.fonts.loaded === 0);
+  if (noFont.length) {
+    for (const r of noFont) console.error(`同梱フォントを読み込めませんでした: ${r.file}（npm ci と npm run theme をやり直してください）`);
+    return 3;
+  }
   const bad = report.flatMap((r) => r.results.map((x) => ({ file: r.file, ...x })));
   if (format === "json") console.log(JSON.stringify({ files: report, problems: bad.length }, null, 1));
   else {

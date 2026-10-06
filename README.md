@@ -26,6 +26,18 @@ npm run watch     # 編集しながらブラウザでプレビュー
 
 VS Code では拡張機能「Marp for VS Code」でプレビューできます（`npm run theme` を先に 1 回）。
 
+### フォント（どの PC でも同じ描画にする）
+
+日本語フォント **Noto Sans JP**（SIL Open Font License 1.1）を npm のパッケージ `@fontsource/noto-sans-jp` で同梱しています。
+`themes/standard.css` の `/* @fontsource noto-sans-jp 400 700 */` を、`npm run theme` が `@font-face` に置き換えます
+（フォントファイルは `node_modules` から読む）。PC に入っているフォントに左右されないので、PDF / PPTX の見た目と
+`npm run check:overflow` の結果がどの PC でもそろいます。同梱フォントを読み込めなかったときは、はみ出しチェックを失敗（終了コード 3）にします。
+
+- 依存の版は `package-lock.json` で固定しています。入れるときは `npm ci`（setup も `npm ci`）。依存を変えたら `package-lock.json` もコミットしてください
+- フォントは `dist/*.pdf` に埋め込まれます。`dist/*.html` は作った PC のフォントファイルを参照するので、ほかの PC で開くとその PC のフォントで表示されます
+- Marp for VS Code のプレビューでは同梱フォントを読めないことがあります（その PC のフォントで表示される）。最終の確認は `npm run check` と PDF で行ってください
+- フォントのライセンス本文は `node_modules/@fontsource/noto-sans-jp/LICENSE` にあります（OFL は PDF への埋め込みと再配布を認めています）
+
 ## スライドの書き方
 
 ```markdown
@@ -99,3 +111,4 @@ npm run lint
 
 - 脆弱性を見つけたら、公開の Issue ではなく [SECURITY.md](SECURITY.md) の方法で知らせてください
 - ライセンスは [MIT](LICENSE) です
+- 同梱フォント Noto Sans JP は SIL Open Font License 1.1 です（`@fontsource/noto-sans-jp` に同梱の LICENSE）

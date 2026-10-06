@@ -5,6 +5,13 @@
  */
 @import 'default';
 
+/*
+ * 同梱フォント Noto Sans JP（SIL Open Font License 1.1、npm の @fontsource/noto-sans-jp）.
+ * npm run theme（scripts/build-theme.mjs）が次の行を @font-face に置き換える. フォントファイルは node_modules から読む.
+ * 同じ名前のフォントが PC に入っていても @font-face が優先されるので、どの PC でも同じ字形・字幅で描画される.
+ */
+/* @fontsource noto-sans-jp 400 700 */
+
 :root {
   --c-primary: #1d4ed8;
   --c-primary-weak: #dbeafe;
