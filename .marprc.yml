@@ -1,4 +1,7 @@
 # Marp CLI の設定（npm run の各スクリプトが使う）
-html: true            # スライド内の <div class="..."> を使うため
-allowLocalFiles: true # 画像・SVG をローカルから読む（PDF / PPTX 出力で必要）
+#
+# 資料の中の HTML（html）と、ローカルのファイルの読み込み（allowLocalFiles）は既定で切っている。
+# 人からもらった資料に、<script> やローカルのファイルを読む記述が入っていても動かないようにするため。
+# 自分で作った資料（とリポジトリ同梱の資料）は、npm run pdf:trusted などの「:trusted」のスクリプトで
+# --html --allow-local-files を付けて出力する（README の「信頼できる資料だけ HTML を有効にする」）。
 themeSet: build/themes

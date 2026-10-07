@@ -27,11 +27,33 @@ jobs:
         run: npm test
       - name: lint (text volume, titles, SVG)
         run: npm run lint
-      - name: overflow check (rendered)
-        run: npm run check:overflow
-      - name: build PDF / PPTX / catalog
-        run: npm run pdf && npm run pptx && npm run catalog
+      # 既定（HTML とローカルのファイルを無効）の出力も止まらないことを確かめる。後の trusted の出力で dist/ を上書きする
+      - name: default (untrusted) build does not fail
+        run: npm run pdf
+      # リポジトリ同梱の資料（slides/ のサンプルとレイアウト集）は信頼できる資料なので、HTML を有効にして確かめる
+      - name: overflow check (rendered, trusted bundled decks)
+        run: npm run check:overflow:trusted
+      - name: build PDF / PPTX / catalog (trusted bundled decks)
+        run: npm run pdf:trusted && npm run pptx:trusted && npm run catalog
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: slides
           path: dist/
+
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - run: npm ci --no-audit --no-fund
+      # はみ出しのテストは CI ではスキップしないので、Windows でもブラウザを入れる
+      - run: npx playwright install chromium
+      - name: unit tests
+        run: npm test
+      - name: lint (text volume, titles, SVG)
+        run: npm run lint

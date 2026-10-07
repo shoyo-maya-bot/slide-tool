@@ -17,12 +17,25 @@ Markdown（[Marp](https://marp.app/)）でスライドを作り、PDF / PPTX に
 3. サンプルを出力する
 
 ```bash
-npm run pdf       # slides/*.md → dist/*.pdf
-npm run pptx      # → dist/*.pptx（スライドは画像として入る）
-npm run catalog   # レイアウト集 → dist/catalog.pdf
-npm run check     # 静的チェック + はみ出しチェック
-npm run watch     # 編集しながらブラウザでプレビュー
+npm run pdf:trusted     # slides/*.md → dist/*.pdf（自分で作った資料。HTML とローカルのファイルを有効にする）
+npm run pptx:trusted    # → dist/*.pptx（スライドは画像として入る）
+npm run catalog         # レイアウト集 → dist/catalog.pdf（同梱の資料なので HTML を有効にして出力）
+npm run check:trusted   # 静的チェック + はみ出しチェック
+npm run watch:trusted   # 編集しながらブラウザでプレビュー
 ```
+
+### 信頼できる資料だけ HTML を有効にする
+
+資料の中の HTML（`<div class="cols">` などのレイアウト）と、ローカルのファイルの読み込み（同梱フォント・画像・SVG）は、
+**既定では無効** です。人からもらった資料に `<script>` やローカルのファイルを読む記述が入っていても、出力のときに動かないようにするためです。
+
+| スクリプト | HTML・ローカルのファイル | 使う資料 |
+|---|---|---|
+| `npm run pdf` / `pptx` / `html` / `watch` / `check` | 無効（HTML は文字として出る。同梱フォントや画像は読まない） | 人からもらった資料・中身を確かめていない資料 |
+| `npm run pdf:trusted` / `pptx:trusted` / `html:trusted` / `watch:trusted` / `check:trusted` | 有効（`--html --allow-local-files`） | 自分（とチーム）で作った資料。`slides/` のサンプル |
+| `npm run catalog` | 有効 | リポジトリ同梱のレイアウト集 |
+
+レイアウト集の書き方（HTML を使う）で作った資料は、`:trusted` で出力してください。
 
 VS Code では拡張機能「Marp for VS Code」でプレビューできます（`npm run theme` を先に 1 回）。
 
@@ -82,11 +95,14 @@ HTML の中に Markdown を書くときは前後に空行を入れます。細�
 | 種類 | ルール | 既定の上限（`config/slide-lint.json`） |
 |---|---|---|
 | error | 見出しが無い / 箇条書きが多い / 本文が多い / 禁止語 / `marp: true` が無い | 箇条書き 6 個、本文 260 字 |
+| error（禁止語） | 本文・front matter（`header:`・`footer:`）・発表者メモ・インラインの SVG・SVG ファイル・ファイル名 | 全角半角・大文字小文字をそろえて比べる（NFKC） |
 | warning | タイトルが長い / 入れ子が深い / 画像の代替テキストが無い / 定義に無いレイアウト | タイトル 全角 32 字、入れ子 2 段 |
 | error（SVG） | viewBox が無い / 外部参照 / script | |
 | error（描画） | スライドの外にはみ出す（outside）/ 箱の中で切れる（clipped）/ 高さを超える（too_tall） | 許容 3px |
 
 `bannedTerms` に社名・顧客名・システム名などを登録すると、資料に入ったときに止まります。
+見出しと箇条書きは、Marp と同じ markdown-it で数えます（コードブロックの中の `- a` や `# コメント` は数えない）。
+検査しないファイルは `exclude` に書きます（既定はリポジトリ直下の `README.md` と `docs/` だけ。`*` は `/` 以外、`**` は何でも）。
 
 ## 構成
 
@@ -106,6 +122,18 @@ docs/          レイアウト一覧・作成手順
 npm test          # node:test（チェックのスクリプトのテスト）
 npm run lint
 ```
+
+はみ出しのテストは playwright が無いと理由を出してスキップします（CI ではスキップせずに失敗にします）。
+CI は Linux（PDF / PPTX まで出力）と Windows（`npm ci`・静的チェック・テスト）で動かします。
+
+## 変更点
+
+| 版 | 変わったこと（**破壊的変更**） | 利用者がすること |
+|---|---|---|
+| 2026-10 | `.marprc.yml` の `html: true` と `allowLocalFiles: true` をやめた。`npm run pdf` などは HTML とローカルのファイルを無効にして出力する | 自分で作った資料は `npm run pdf:trusted` などの `:trusted` のスクリプトで出力する |
+| 2026-10 | 禁止語を front matter・SVG・ファイル名でも探し、全角半角をそろえて比べる | 今まで通っていた資料が止まることがある。語を直す |
+| 2026-10 | 除外を設定の `exclude` にした（前はパスに `README` か `docs` を含むファイルをすべて除外） | `slides/docs-x/` などにある資料も検査される |
+| 2026-10 | `npm run lint` が `assets/` の SVG も検査する | なし |
 
 ## セキュリティ・ライセンス
 

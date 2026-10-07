@@ -8,8 +8,8 @@ AI（Copilot Chat）と一緒に作る前提の手順です。各ステップで
 | 2 | 骨子 | 1 枚 1 メッセージで、タイトルだけを並べる（結論を先に） | タイトルの一覧 | `/slide-create` の前半（骨子だけ） |
 | 3 | レイアウト | 各スライドに L01〜L20 を割り当てる | タイトル＋レイアウト番号 | 「内容に合うレイアウトを docs/layouts.md から選んで」 |
 | 4 | 本文と図 | 本文を書き、図は SVG で作る | slides/*.md と assets/ | `/slide-create` の後半、図は `slide-svg` スキル |
-| 5 | チェック | `npm run check`（文字量・箇条書き・はみ出し） | error 0 件 | はみ出したら `slide-layout-fix` スキル |
-| 6 | 出力とレビュー | `npm run pdf` / `npm run pptx`。聞き手の立場で読み直す | dist/*.pdf / *.pptx | 「聞き手が質問しそうな点を 5 つ挙げて」 |
+| 5 | チェック | `npm run check:trusted`（文字量・箇条書き・はみ出し） | error 0 件 | はみ出したら `slide-layout-fix` スキル |
+| 6 | 出力とレビュー | `npm run pdf:trusted` / `npm run pptx:trusted`。聞き手の立場で読み直す | dist/*.pdf / *.pptx | 「聞き手が質問しそうな点を 5 つ挙げて」 |
 
 ## 守ること
 
@@ -22,9 +22,13 @@ AI（Copilot Chat）と一緒に作る前提の手順です。各ステップで
 
 | 形式 | コマンド | 補足 |
 |---|---|---|
-| PDF | `npm run pdf` | 配布の基本 |
-| PPTX | `npm run pptx` | スライドは画像として入る（文字の編集はできない）。編集したい場合は Markdown を直して出し直す |
-| HTML | `npm run html` | ブラウザで発表する |
+| PDF | `npm run pdf:trusted` | 配布の基本 |
+| PPTX | `npm run pptx:trusted` | スライドは画像として入る（文字の編集はできない）。編集したい場合は Markdown を直して出し直す |
+| HTML | `npm run html:trusted` | ブラウザで発表する |
+
+`:trusted` は資料の中の HTML（レイアウトの `<div>`）とローカルのファイル（同梱フォント・画像）を有効にします。
+**自分（とチーム）で作った資料だけ** に使ってください。人からもらった資料は `:trusted` の付かない `npm run pdf` などで出力します
+（HTML は文字として表示され、ローカルのファイルは読みません）。
 
 VS Code の拡張機能「Marp for VS Code」を入れると、編集しながらプレビューできます（設定は `.vscode/settings.json` 済み。
 先に `npm run theme` を 1 回実行してテーマを作ってください）。

@@ -1,11 +1,11 @@
 ---
 name: slide-layout-fix
-description: npm run check ではみ出し（outside / clipped / too_tall）や文字量の指摘が出たスライドを直す手順
+description: npm run check:trusted ではみ出し（outside / clipped / too_tall）や文字量の指摘が出たスライドを直す手順
 ---
 
 # はみ出しの直し方
 
-`npm run check` の結果の表（ファイル・枚目・種類・要素）を見て、上から順に試します。
+`npm run check:trusted`（自分で作った資料。人からもらった資料は `npm run check`）の結果の表（ファイル・枚目・種類・要素）を見て、上から順に試します。
 **フォントを小さくして押し込むのは最後の手段**（読めなくなるため、22px 未満にしない）。
 
 | 種類 | 意味 | 直し方（上から試す） |
@@ -20,7 +20,7 @@ description: npm run check ではみ出し（outside / clipped / too_tall）や�
 
 1. 指摘のスライドを開き、そのスライドの「1 つのメッセージ」を確かめる
 2. メッセージに関係しない行から削る。削れないなら分割する
-3. `npm run check` をもう一度実行し、error 0 件を確かめる
+3. `npm run check:trusted` をもう一度実行し、error 0 件を確かめる
 4. 直した内容（削った行・分けたスライド）をユーザーに報告する。内容を削った場合は必ず伝える
 
 テーマ（themes/standard.css）の余白や文字サイズは、全スライドに影響するので変えない。
