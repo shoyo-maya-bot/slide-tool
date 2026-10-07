@@ -26,7 +26,16 @@ async function loadChromium() {
 const chromium = await loadChromium();
 const exe = process.env.CHROMIUM_PATH || (existsSync("/opt/pw-browsers/chromium") ? "/opt/pw-browsers/chromium" : undefined);
 
-test("はみ出しの検出（縦・箱の中・横。フッターは対象外）", { skip: !chromium && "playwright が無い" }, async () => {
+// 手元で playwright が無いときは理由を出してスキップする。CI（環境変数 CI）ではスキップせずに失敗にする
+const SKIP_REASON = "playwright が無い（npm ci と npx playwright install chromium の後に実行される。CI では必ず実行する）";
+const skip = !chromium && !process.env.CI ? SKIP_REASON : false;
+if (skip) console.warn(`警告: はみ出しのテストをスキップします: ${SKIP_REASON}`);
+
+test("CI では playwright が必ずある（はみ出しのテストを黙ってスキップしない）", { skip: !process.env.CI && "CI ではない" }, () => {
+  assert.ok(chromium, "playwright を読めません。npm ci と npx playwright install chromium を確認してください");
+});
+
+test("はみ出しの検出（縦・箱の中・横。フッターは対象外）", { skip }, async () => {
   const [r] = await check(["tests/fixtures/overflow.html"], () => chromium.launch(exe ? { executablePath: exe } : {}));
   assert.equal(r.slides, 4);
   const bySlide = Object.fromEntries(r.results.map((x) => [x.slide, x.issues.map((i) => i.kind)]));
@@ -37,7 +46,7 @@ test("はみ出しの検出（縦・箱の中・横。フッターは対象外�
   assert.ok(!r.results.find((x) => x.slide === 4).issues.some((i) => i.element === "footer"));
 });
 
-test("同梱フォントの読み込みを確かめる（読めないフォントは loaded 0）", { skip: !chromium && "playwright が無い" }, async () => {
+test("同梱フォントの読み込みを確かめる（読めないフォントは loaded 0）", { skip }, async () => {
   const dir = mkdtempSync(join(tmpdir(), "font-"));
   const sys = ["/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "C:\\Windows\\Fonts\\arial.ttf"].find(existsSync);
   const page = (src) =>
