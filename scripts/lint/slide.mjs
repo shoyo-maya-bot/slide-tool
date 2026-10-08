@@ -50,6 +50,27 @@ export function structure(text) {
   return { title: heading ? heading[1] : null, top, depth: deepest };
 }
 
+// Marp（Marpit）の画像の指定. 代替テキストを空白で区切った語のうち、語全体がこれに合うものだけが指定として消える
+const LENGTH = String.raw`(?:\d*\.)?\d+(?:%|ch|cm|em|ex|in|mm|pc|pt|px)?|auto`;
+const IMAGE_KEYWORDS = [
+  /^(\d*\.)?\d+%$/,
+  new RegExp(`^w(?:idth)?:(?:${LENGTH})$`),
+  new RegExp(`^h(?:eight)?:(?:${LENGTH})$`),
+  /^(blur|brightness|contrast|grayscale|hue-rotate|invert|opacity|saturate|sepia)(:.+)?$/,
+  /^drop-shadow(:.+)?$/,
+];
+// 背景画像（bg がある）ときだけの指定
+const BG_KEYWORDS = [/^bg$/, /^(auto|contain|cover|fit)$/, /^(left|right)(:(\d*\.)?\d+%)?$/, /^(vertical|horizontal)$/];
+
+/** 画像の代替テキストから Marp の画像の指定（w:200px・h:100・bg・fit・blur など）を除いた残り */
+export function altWithoutMarpKeywords(alt) {
+  const words = alt.split(/\s+/).filter(Boolean);
+  const bg = words.includes("bg");
+  return words
+    .filter((w) => !IMAGE_KEYWORDS.some((re) => re.test(w)) && !(bg && BG_KEYWORDS.some((re) => re.test(w))))
+    .join(" ");
+}
+
 export function lintSlide(slide, index, conf, file) {
   const out = [];
   const add = (severity, rule_id, message) => out.push({ rule_id, severity, message, location: `${file}:${slide.line} (${index + 1} 枚目)` });
@@ -73,7 +94,7 @@ export function lintSlide(slide, index, conf, file) {
     .replace(/[\s|*_`>#-]/g, "");
   if (body.length > conf.maxBodyChars) add("error", "slide.too_much_text", `本文が ${body.length} 字（上限 ${conf.maxBodyChars}）。要点に絞るか分割します`);
   for (const m of text.matchAll(/!\[([^\]]*)\]\(([^)\s]+)/g)) {
-    const alt = m[1].replace(/\b(w|h|width|height|bg|left|right|fit|contain|cover):?\S*/g, "").trim();
+    const alt = altWithoutMarpKeywords(m[1]);
     if (!alt) add("warning", "slide.image_no_alt", `画像に代替テキストがありません: ${m[2]}`);
   }
   for (const m of text.matchAll(/<img\b(?![^>]*\balt=)[^>]*>/g)) add("warning", "slide.image_no_alt", `img に alt がありません: ${m[0].slice(0, 40)}`);
