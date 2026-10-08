@@ -309,6 +309,9 @@ test("Markdown の中の HTML: <script>・任意の要素の on* 属性・javasc
     ['<iframe src="&#106;avascript:alert(1)"></iframe>', "html.javascript_url"],
     ["[押す](javascript:alert(1))", "html.javascript_url"],
     ["[押す]( JavaScript:alert(1) )", "html.javascript_url"],
+    ['<a href="vbscript:msgbox(1)">x</a>', "html.javascript_url"],
+    ['<iframe src="data:text/html,&lt;script&gt;alert(1)&lt;/script&gt;"></iframe>', "html.javascript_url"],
+    ["[開く](data:text/html;base64,PHNjcmlwdD4=)", "html.javascript_url"],
   ];
   for (const [html, rule] of cases) {
     const r = runIn({ "slides/a.md": `${deckHead}# 図\n\n${html}\n` }, ["slides"], {});
@@ -338,12 +341,27 @@ test("Markdown の中の HTML: コードとして書いた例・コメント・�
     '<div class="grid grid-cols-2 gap-4" data-online="1">',
     "",
     "[資料](https://example.com/a) と [次へ](#2) online onload",
+    '<img src="data:image/png;base64,iVBORw0KGgo=" alt="点">',
     "",
     "</div>",
   ].join("\n");
   const r = runIn({ "slides/a.md": `${deckHead}${body}\n` }, ["slides"], {});
   assert.equal(r.code, 0, JSON.stringify(r.findings));
   assert.deepEqual(r.findings, []);
+});
+
+test("本文の字数: タグを消した後につながった文字を数えない（<scr<script>ipt> など）", () => {
+  const r = runIn({ "slides/a.md": `${deckHead}# 短い\n\n<sp<span>an>本文</span>\n` }, ["slides"], {});
+  assert.ok(!rules(r.findings).includes("slide.too_much_text"));
+});
+
+test("SVG: vbscript:・data:（画像以外）の URL も検出する", () => {
+  const dir = mkdtempSync(join(tmpdir(), "svg-scheme-"));
+  for (const href of ["vbscript:x", "data:text/html,x", "DATA:image/svg+xml,<svg/onload=x>"]) {
+    const p = join(dir, "a.svg");
+    writeFileSync(p, `<svg viewBox="0 0 1 1"><title>図</title><a href="${href}"><rect/></a></svg>`);
+    assert.ok(rules(lintSvg(p)).includes("svg.javascript_url"), href);
+  }
 });
 
 test("拡張子の大文字小文字を区別しない（SLIDE.MD・FIG.SVG も検査する）", () => {

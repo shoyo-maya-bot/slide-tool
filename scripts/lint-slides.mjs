@@ -163,12 +163,14 @@ function directive(text, name) {
   return m ? m[1].trim() : "";
 }
 
+/** 本文の字数を数えるために、コード・コメント・SVG・タグ・画像を空白にする（空白は後で数えない. 無害化ではない） */
 function stripNonBody(text) {
   return dropFences(text)
-    .replace(/<!--[\s\S]*?-->/g, "")
-    .replace(/<svg[\s\S]*?<\/svg>/g, "")
-    .replace(/<[^>]+>/g, "")
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, "");
+    .replace(/<!--[\s\S]*?-->/g, " ")
+    .replace(/<svg[\s\S]*?<\/svg>/g, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
+    .replace(/[<>]/g, " "); // 消し残しの < > は本文の字数に数えない
 }
 
 /** コードブロック（``` と ~~~）の行を除く（markdown-it を読めないときだけ使う） */
@@ -278,7 +280,7 @@ export function lintFile(path, conf) {
  * SVG の中の、スクリプトを動かせる記述を探す. → [{ rule_id, severity, message }]
  * - on で始まるイベント属性（onload・onclick など）
  * - foreignObject（中に HTML を入れられる）
- * - href / xlink:href の javascript: URL（空白・大文字・文字参照で書いたものも含む）
+ * - 属性の値の javascript:・vbscript:・data:（画像以外）の URL（空白・大文字・文字参照で書いたものも含む）
  */
 export function svgDangers(text) {
   const out = [];
@@ -288,7 +290,7 @@ export function svgDangers(text) {
   const events = new Set(tags.flatMap((t) => t.attrs.filter((a) => isEventAttr(a.name)).map((a) => a.name)));
   if (events.size) add("svg.event_handler", `イベント属性（${[...events].join(", ")}）を含めないでください（読み込み・クリックでスクリプトが動きます）`);
   if (/<foreignObject\b/i.test(text)) add("svg.foreign_object", "foreignObject を含めないでください（中の HTML が動きます。文字は <text> で書きます）");
-  if (tags.some((t) => t.attrs.some((a) => isJavascriptUrl(a.value)))) add("svg.javascript_url", "javascript: のリンクを含めないでください");
+  if (tags.some((t) => t.attrs.some((a) => isJavascriptUrl(a.value)))) add("svg.javascript_url", "javascript:・vbscript:・data:（画像以外）の URL を含めないでください");
   return out;
 }
 
@@ -296,7 +298,7 @@ export function svgDangers(text) {
  * Markdown の中の HTML（SVG の外）で、スクリプトを動かせる記述を探す. → [{ rule_id, severity, message, index }]
  * - <script> 要素
  * - on で始まるイベント属性（どの要素でも. <img/onerror=…> のような / 区切りも）
- * - 属性の値・Markdown のリンク先の javascript: URL
+ * - 属性の値・Markdown のリンク先の javascript:・vbscript:・data:（画像以外）の URL
  * text はコードを空白にしたもの（maskCode）を渡す
  */
 export function htmlDangers(text) {
@@ -306,20 +308,25 @@ export function htmlDangers(text) {
     if (t.name === "script") add("html.script", "script を含めないでください（:trusted で出力するとスクリプトが動きます）", t.index);
     const events = t.attrs.filter((a) => isEventAttr(a.name)).map((a) => a.name);
     if (events.length) add("html.event_handler", `<${t.name}> のイベント属性（${events.join(", ")}）を含めないでください（:trusted で出力するとスクリプトが動きます）`, t.index);
-    if (t.attrs.some((a) => isJavascriptUrl(a.value))) add("html.javascript_url", `<${t.name}> に javascript: の URL を含めないでください`, t.index);
+    if (t.attrs.some((a) => isJavascriptUrl(a.value))) add("html.javascript_url", `<${t.name}> に javascript:・vbscript:・data:（画像以外）の URL を含めないでください`, t.index);
   }
   // Markdown のリンク・画像 [x](javascript:…) と自動リンク <javascript:…>
   for (const m of text.matchAll(/\]\(\s*<?([^)>]*)|<([a-zA-Z][a-zA-Z0-9+.-]{1,31}:[^\s<>]*)>/g)) {
-    if (isJavascriptUrl(m[1] ?? m[2])) add("html.javascript_url", "javascript: のリンクを含めないでください", m.index);
+    if (isJavascriptUrl(m[1] ?? m[2])) add("html.javascript_url", "javascript:・vbscript:・data:（画像以外）のリンクを含めないでください", m.index);
   }
   return out;
 }
 
 const isEventAttr = (name) => /^on[a-z]+$/i.test(name);
 
-/** javascript: の URL か（空白・制御文字・大文字・文字参照で書いたものも含む） */
+/**
+ * スクリプトを動かせる URL か: javascript:・vbscript:、画像（png・jpeg・gif・webp）以外の data:（data:text/html など）.
+ * 空白・制御文字・大文字・文字参照で書いたものも含む
+ */
 function isJavascriptUrl(value) {
-  return decodeEntities(value).replace(/[\s\u0000-\u001f]/g, "").toLowerCase().startsWith("javascript:");
+  const v = decodeEntities(value).replace(/[\s\u0000-\u001f]/g, "").toLowerCase();
+  if (v.startsWith("javascript:") || v.startsWith("vbscript:")) return true;
+  return v.startsWith("data:") && !/^data:image\/(png|jpe?g|gif|webp)[;,]/.test(v);
 }
 
 /**
