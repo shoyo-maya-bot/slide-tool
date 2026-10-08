@@ -184,3 +184,74 @@ test("normalize と globToRegExp", () => {
 test("markdown-it で数えている（CI では必須）", { skip: !process.env.CI && parser !== "markdown-it" && "markdown-it が無い（npm ci の前）" }, () => {
   assert.equal(parser, "markdown-it");
 });
+
+// --- 第 2 回の指摘の再現 ---
+
+test("BOM 付きのファイルでも front matter を認識する", () => {
+  const r = runIn({ "slides/bom.md": `﻿${deckHead}# タイトル\n\n本文\n` }, ["slides"], {});
+  assert.equal(r.code, 0, JSON.stringify(r.findings));
+  assert.deepEqual(r.findings, []);
+  // splitSlides も BOM を除く（front matter を本文の 1 枚目と取り違えない）
+  const { front, slides } = splitSlides(`﻿---\nmarp: true\n---\n\n# a\n`);
+  assert.equal(front, "marp: true");
+  assert.equal(slides.length, 1);
+});
+
+test("BOM 付きの CRLF のファイル・BOM 付きの設定ファイル", () => {
+  const dir = mkdtempSync(join(tmpdir(), "bom-"));
+  const p = join(dir, "crlf.md");
+  writeFileSync(p, "﻿---\r\nmarp: true\r\ntheme: standard\r\n---\r\n\r\n# タイトル\r\n");
+  assert.deepEqual(lintFile(p, conf), []);
+  const r = runIn({ "slides/a.md": `${deckHead}# ABC社\n` }, ["slides"], null);
+  assert.equal(r.code, 0);
+  const withBomConf = (() => {
+    const d = mkdtempSync(join(tmpdir(), "bomconf-"));
+    mkdirSync(join(d, "slides"));
+    writeFileSync(join(d, "slides", "a.md"), `${deckHead}# ABC社\n`);
+    writeFileSync(join(d, "slide-lint.json"), `﻿${JSON.stringify({ bannedTerms: ["ABC社"] })}`);
+    const cwd = process.cwd();
+    const log = console.log;
+    console.log = () => {};
+    try {
+      process.chdir(d);
+      return main(["slides", "--config", "slide-lint.json"]);
+    } finally {
+      process.chdir(cwd);
+      console.log = log;
+    }
+  })();
+  assert.equal(withBomConf, 1); // 設定を読めて、禁止語を見つける（BOM で設定の誤り 2 にならない）
+});
+
+test("SVG の危険な記述: on* 属性・foreignObject・javascript: の href", () => {
+  const dir = mkdtempSync(join(tmpdir(), "svg-danger-"));
+  const head = '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 10 10"><title>図</title>';
+  const cases = {
+    "onload.svg": [`${head.replace("<svg ", '<svg onload="alert(1)" ')}</svg>`, "svg.event_handler"],
+    "onclick.svg": [`${head}<rect ONCLICK = "x()" width="1" height="1"/></svg>`, "svg.event_handler"],
+    "fo.svg": [`${head}<foreignObject width="1" height="1"><div>x</div></foreignObject></svg>`, "svg.foreign_object"],
+    "js.svg": [`${head}<a href="javascript:alert(1)"><rect width="1" height="1"/></a></svg>`, "svg.javascript_url"],
+    "xlink-js.svg": [`${head}<a xlink:href=" JavaScript:alert(1)"><rect width="1" height="1"/></a></svg>`, "svg.javascript_url"],
+    "entity-js.svg": [`${head}<a href="&#106;ava&#x73;cript&colon;alert(1)"><rect width="1" height="1"/></a></svg>`, "svg.javascript_url"],
+    "split-js.svg": [`${head}<a href="java\tscript:alert(1)"><rect width="1" height="1"/></a></svg>`, "svg.javascript_url"],
+  };
+  for (const [name, [body, rule]] of Object.entries(cases)) {
+    const p = join(dir, name);
+    writeFileSync(p, body);
+    const f = lintSvg(p);
+    assert.ok(rules(f).includes(rule), `${name}: ${JSON.stringify(f)}`);
+    assert.equal(f.find((x) => x.rule_id === rule).severity, "error");
+  }
+  // 誤検出しない: 普通の属性名（font-family・opacity など）、ページ内のリンク、"one" などの文字
+  const ok = join(dir, "ok.svg");
+  writeFileSync(ok, `${head}<a href="#sec2"><text font-family="sans-serif" opacity="1">online onload</text></a></svg>`);
+  assert.deepEqual(lintSvg(ok), []);
+});
+
+test("資料の中に直接書いた SVG の危険な記述も検出する", () => {
+  const r = runIn({ "slides/a.md": `${deckHead}# 図\n\n<svg viewBox="0 0 1 1" onload="alert(1)"><foreignObject><div>x</div></foreignObject></svg>\n` }, ["slides"], {});
+  assert.equal(r.code, 1);
+  const ids = rules(r.findings).sort();
+  assert.deepEqual(ids, ["svg.event_handler", "svg.foreign_object"]);
+  assert.match(r.findings[0].location, /a\.md:8$/);
+});
