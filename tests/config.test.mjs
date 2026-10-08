@@ -28,3 +28,12 @@ test("既定のスクリプトは HTML を有効にしない。:trusted だけ�
   for (const name of ["check:overflow", "check:overflow:trusted"]) assert.ok(!scripts[name].includes("build/check"), name);
   assert.equal((scripts.catalog.match(/--html --allow-local-files/g) || []).length, 2);
 });
+
+test(":trusted の出力は先に lint を通す（HTML・SVG の検査で止まる）", () => {
+  for (const name of ["html:trusted", "pdf:trusted", "pptx:trusted", "watch:trusted", "catalog"]) {
+    assert.match(scripts[name], /^npm run lint && /, `${name} は npm run lint から始める`);
+  }
+  for (const [name, cmd] of Object.entries(scripts)) {
+    if (cmd.includes("--html") && !name.startsWith("check")) assert.match(cmd, /^npm run lint && /, name);
+  }
+});

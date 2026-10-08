@@ -103,13 +103,17 @@ HTML の中に Markdown を書くときは前後に空行を入れます。細�
 | error | 見出しが無い / 箇条書きが多い / 本文が多い / 禁止語 / `marp: true` が無い | 箇条書き 6 個、本文 260 字 |
 | error（禁止語） | 本文・front matter（`header:`・`footer:`）・発表者メモ・インラインの SVG・SVG ファイル・ファイル名 | 全角半角・大文字小文字をそろえて比べる（NFKC） |
 | warning | タイトルが長い / 入れ子が深い / 画像の代替テキストが無い / 定義に無いレイアウト | タイトル 全角 32 字、入れ子 2 段 |
-| error（SVG） | viewBox が無い / 外部参照 / script / イベント属性（`onload` など `on*`。`<svg/onload=…>` のような `/` 区切りも）/ `foreignObject` / `javascript:`・`vbscript:`・`data:`（画像以外）の URL | SVG ファイルと、資料の中に直接書いた SVG の両方 |
+| error（SVG） | viewBox が無い / 外部参照（`href`・`xlink:href`・`src` の `https:`・`//`、`<style>`・`style` 属性の `@import`・外部の `url()`）/ script / イベント属性（`onload` など `on*`。`<svg/onload=…>` のような `/` 区切りも）/ `foreignObject` / `javascript:`・`vbscript:`・`data:`（画像以外）の URL / 許可の一覧に無い要素（`animate`・`set` など） | SVG ファイルと、資料の中に直接書いた SVG の両方 |
 | error（HTML） | 資料の中の `<script>` / どの要素でもイベント属性（`<img onerror=…>` など）/ 属性やリンク先の `javascript:`・`vbscript:`・`data:`（png・jpeg・gif・webp の画像は可） | `.md` の本文（コードフェンス・インラインのコード・HTML コメントの中は見ない） |
+| error（HTML の許可の一覧） | 使ってよい要素・属性の一覧（`scripts/lint/allowlist.mjs`）に無いもの（`<iframe>`・`<object>`・`<embed>`・`<meta>`・`<link>`・`<base>`・`<form>`・`<video>` など、`srcset` などの属性）/ 外部の読み込み（`<img src="https://…">`・`![](https://…)`・`<style>` や `style` 属性の `@import`・外部の `url()`） | `.md` の本文。リンク（`[資料](https://…)`）は読み込まないので可。画像・CSS はリポジトリの中のもの（相対パス）か `data:image` を使う |
 | error（描画） | スライドの外にはみ出す（outside）/ 箱の中で切れる（clipped）/ 高さを超える（too_tall） | 許容 3px |
 
 `bannedTerms` に社名・顧客名・システム名などを登録すると、資料に入ったときに止まります。
 見出しと箇条書きは、Marp と同じ markdown-it で数えます（コードブロックの中の `- a` や `# コメント` は数えない）。
 コードフェンスは CommonMark どおり、開いたのと同じ文字（バッククォートかチルダ）で、同じ長さ以上の行で閉じます（バッククォートのフェンスの中の `~~~` では閉じない）。
+スライドの区切りは Marp と同じく、一番外側の水平線（`---`・`***`・`___`）です。段落の直後の `---` は見出し（setext。`##` と同じ）で、区切りになりません（Marp で描画した枚数とテストで突き合わせています）。
+画像の代替テキストから除くのは Marp の画像の指定（`w:200px`・`width:50%`・`h:auto`・`blur` などと、`bg` があるときの `fit`・`left:40%` など）だけです。`![hello world](…)` や `![workflow](…)` は代替テキストとして扱います。
+`:trusted` のスクリプト（`pdf:trusted`・`pptx:trusted`・`html:trusted`・`watch:trusted`・`catalog`）は、出力の前に `npm run lint` を流し、error があれば止まります。
 拡張子は大文字小文字を区別しません（`SLIDE.MD`・`FIG.SVG` も検査します）。
 検査しないファイルは `exclude` に書きます（既定はリポジトリ直下の `README.md` と `docs/` だけ。`*` は `/` 以外、`**` は何でも）。
 
@@ -120,7 +124,7 @@ slides/        スライド（1 ファイル = 1 資料）
 layouts/       レイアウト集（catalog.md）
 assets/svg/    図（SVG）
 themes/        テーマ（standard.css）と Tailwind の入力
-scripts/       テーマの結合・静的チェック・はみ出しチェック
+scripts/       テーマの結合・静的チェック（lint/ に分割・タグ読み取り・危険判定・SVG・CLI）・はみ出しチェック
 config/        チェックの設定
 docs/          レイアウト一覧・作成手順
 ```
@@ -146,6 +150,8 @@ CI は Linux（PDF / PPTX まで出力）と Windows（`npm ci`・静的チェ�
 | 2026-10 | `npm run lint` が `assets/` の SVG も検査する | なし |
 | 2026-10 | SVG のイベント属性・`foreignObject`・`javascript:` のリンクを error にする。BOM 付きのファイルも front matter を認識する | 該当する SVG を直す（文字は `<text>` で書く） |
 | 2026-10 | 資料の中の `<script>`・イベント属性・`javascript:`・`vbscript:`・`data:`（画像以外）を SVG の外でも error にする。`.MD`・`.SVG` も検査する | 該当する記述を直す（コードの例はコードフェンスかインラインのコードに入れる） |
+| 2026-10 | 資料の中の HTML を「使ってよい要素・属性の一覧」で検査し、一覧に無いもの（`<iframe>`・`<meta>`・`<link>` など）と外部の読み込み（`<img src="https://…">`・`@import`・外部の `url()`）を error にする。`:trusted` の出力の前に lint を流す | 外部の画像・CSS はリポジトリに置いて相対パスで読む。どうしても要る要素は `scripts/lint/allowlist.mjs` に理由と一緒に足す（レビューで確認） |
+| 2026-10 | スライドの区切りを Marp と同じにした（段落の直後の `---` は区切りではない） | 枚数・行番号の表示が Marp の出力と合うようになる。区切りたいところは `---` の前に空行を入れる |
 | 2026-10 | `npm run check:overflow` を `npm run pdf` と同じ扱い（HTML 無効）で測る。測定用の `build/check` を残さない | `:trusted` で出力する資料は `npm run check:trusted` で測る |
 
 ## セキュリティ・ライセンス
