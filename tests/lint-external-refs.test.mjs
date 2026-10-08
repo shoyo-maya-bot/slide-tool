@@ -46,7 +46,7 @@ test("参照形式の画像（![図][logo] + [logo]: https://…）は外部の�
     const r = lintIn(deck(body));
     assert.equal(r.code, 1, body);
     assert.equal(external(r).length, 1, `${body}: ${JSON.stringify(r.findings)}`);
-    assert.match(external(r)[0].location, /slides\/a\.md:\d+$/);
+    assert.match(external(r)[0].location, /slides[\\/]a\.md:\d+$/);
   }
 });
 
