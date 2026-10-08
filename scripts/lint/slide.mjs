@@ -2,18 +2,53 @@
 //
 // 見出しと箇条書きは、Marp と同じ markdown-it（package-lock.json で固定）のトークンで数える（コードブロックの中は数えない）。
 // markdown-it を読めないとき（npm ci の前）は警告を出し、コードブロックを除いた行で数える。CI（環境変数 CI）では失敗にする。
-import { htmlDangers, svgDangers } from "./dangers.mjs";
-import { dropFences, maskCode, splitSlides } from "./split.mjs";
+import { htmlDangers, pathContext, svgDangers } from "./dangers.mjs";
+import { dropFences, fenceLines, maskCode, splitSlides } from "./split.mjs";
 import { bannedMessage, blank, findBanned, readText, width } from "./text.mjs";
 
 import { md, parser } from "./markdown.mjs";
 
 export { parser };
 
-function directive(text, name) {
-  const re = new RegExp(`<!--\\s*_?${name}\\s*:\\s*([^>]*?)\\s*-->`);
-  const m = text.match(re);
-  return m ? m[1].trim() : "";
+/** YAML の値の前後の引用符を外す */
+const unquote = (v) => v.trim().replace(/^(['"])(.*)\1$/, "$2").trim();
+
+/**
+ * スライドの中の HTML コメントの class の指定. → { local, spot }（無ければ null）
+ * Marp と同じく、`<!-- class: x -->` はそのスライドから後ろに引き継ぎ、`<!-- _class: x -->` はそのスライドだけ.
+ * 1 つのコメントに複数の指定（paginate: true など）を書いたものも読む. コードフェンスの中は見ない
+ */
+export function classDirectives(text) {
+  const lines = text.split("\n");
+  const inFence = fenceLines(lines);
+  const body = lines.map((ln, i) => (inFence[i] ? "" : ln)).join("\n");
+  let local = null;
+  let spot = null;
+  for (const m of body.matchAll(/<!--([\s\S]*?)-->/g)) {
+    for (const d of m[1].matchAll(/^[ \t]*(_?)class[ \t]*:(.*)$/gm)) {
+      if (d[1]) spot = unquote(d[2]);
+      else local = unquote(d[2]);
+    }
+  }
+  return { local, spot };
+}
+
+/** front matter の class（全スライドの既定） */
+export function frontClass(front) {
+  const m = front.match(/^class[ \t]*:(.*)$/m);
+  return m ? unquote(m[1]) : "";
+}
+
+/**
+ * スライドごとの class. front matter の class を既定に、`class:` は後ろへ引き継ぎ、`_class:` はそのスライドだけ上書き
+ */
+export function slideClasses(front, slides) {
+  let inherited = frontClass(front);
+  return slides.map((s) => {
+    const { local, spot } = classDirectives(s.text);
+    if (local !== null) inherited = local;
+    return spot ?? inherited;
+  });
 }
 
 /** 本文の字数を数えるために、コード・コメント・SVG・タグ・画像を空白にする（空白は後で数えない. 無害化ではない） */
@@ -87,7 +122,8 @@ export function lintSlide(slide, index, conf, file) {
   const out = [];
   const add = (severity, rule_id, message) => out.push({ rule_id, severity, message, location: `${file}:${slide.line} (${index + 1} 枚目)` });
   const text = slide.text;
-  const classes = directive(text, "class").split(/\s+/).filter(Boolean);
+  const cls = slide.className ?? slideClasses("", [slide])[0];
+  const classes = cls.split(/\s+/).filter(Boolean);
   const layout = classes.find((c) => conf.layouts.includes(c)) || "";
   const unknown = classes.filter((c) => !conf.layouts.includes(c) && !c.startsWith("tw-") && !/^(lead|invert|gaia)$/.test(c));
   if (conf.layouts.length && unknown.length) add("warning", "slide.unknown_layout", `定義に無いレイアウト: ${unknown.join(", ")}（docs/layouts.md）`);
@@ -124,15 +160,17 @@ export function lintFile(path, conf) {
   }
   if (!/^marp:\s*true\s*$/m.test(front)) out.push({ rule_id: "deck.not_marp", severity: "error", message: "front matter に marp: true がありません", location: `${path}:1` });
   if (!/^theme:\s*\S+/m.test(front)) out.push({ rule_id: "deck.no_theme", severity: "warning", message: "front matter に theme がありません（standard を推奨）", location: `${path}:1` });
-  slides.forEach((s, i) => out.push(...lintSlide(s, i, conf, path)));
+  const classes = slideClasses(front, slides);
+  slides.forEach((s, i) => out.push(...lintSlide({ ...s, className: classes[i] }, i, conf, path)));
   // :trusted（HTML 有効）で出力すると、資料の中に直接書いた HTML・SVG も動くので、スクリプトを動かせる記述を探す.
   // コードフェンス・インラインのコード・HTML コメントの中は動かないので見ない
   const lineAt = (text, index) => text.slice(0, index).split(/\r?\n/).length;
+  const ctx = pathContext(path);
   let scan = maskCode(raw);
   for (const m of scan.matchAll(/<svg\b[\s\S]*?<\/svg>/gi)) {
-    for (const d of svgDangers(m[0])) out.push({ ...d, location: `${path}:${lineAt(raw, m.index)}` });
+    for (const d of svgDangers(m[0], ctx)) out.push({ ...d, location: `${path}:${lineAt(raw, m.index)}` });
   }
   scan = scan.replace(/<svg\b[\s\S]*?<\/svg>/gi, blank);
-  for (const d of htmlDangers(scan)) out.push({ rule_id: d.rule_id, severity: d.severity, message: d.message, location: `${path}:${lineAt(raw, d.index)}` });
+  for (const d of htmlDangers(scan, ctx)) out.push({ rule_id: d.rule_id, severity: d.severity, message: d.message, location: `${path}:${lineAt(raw, d.index)}` });
   return out;
 }
