@@ -6,15 +6,9 @@ import { htmlDangers, svgDangers } from "./dangers.mjs";
 import { dropFences, maskCode, splitSlides } from "./split.mjs";
 import { bannedMessage, blank, findBanned, readText, width } from "./text.mjs";
 
-let MarkdownIt = null;
-try {
-  ({ default: MarkdownIt } = await import("markdown-it"));
-} catch {
-  MarkdownIt = null;
-}
-/** 見出し・箇条書きを数える方法（"markdown-it" か、読めないときの "fallback"） */
-export const parser = MarkdownIt ? "markdown-it" : "fallback";
-const md = MarkdownIt ? new MarkdownIt({ html: true }) : null;
+import { md, parser } from "./markdown.mjs";
+
+export { parser };
 
 function directive(text, name) {
   const re = new RegExp(`<!--\\s*_?${name}\\s*:\\s*([^>]*?)\\s*-->`);

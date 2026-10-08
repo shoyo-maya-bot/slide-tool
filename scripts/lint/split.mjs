@@ -1,4 +1,5 @@
 // スライドの分割（front matter・区切り）と、コードフェンス・インラインのコードの扱い
+import { md } from "./markdown.mjs";
 import { blank, stripBom } from "./text.mjs";
 
 /**
@@ -34,7 +35,12 @@ export function fenceLines(lines) {
   return inside;
 }
 
-/** front matter とスライドに分ける（コードブロック内の --- は区切りにしない） */
+/**
+ * front matter とスライドに分ける. 区切りは Marp（Marpit）と同じく、一番外側（引用・箇条書きの中ではない）の水平線
+ * （---・***・___ など）. 段落の直後の --- は setext の見出し（## と同じ）で、区切りではない.
+ * コードブロック（フェンス・字下げ 4 つ）の中の --- も区切りではない.
+ * markdown-it を読めないときは、行の形で近い判定をする（段落の直後の --- を区切りにしない）
+ */
 export function splitSlides(text) {
   const lines = stripBom(text).replace(/\r\n/g, "\n").split("\n");
   let front = "";
@@ -46,22 +52,61 @@ export function splitSlides(text) {
       i = end + 1;
     }
   }
+  const body = lines.slice(i);
+  const rules = new Set(md ? hrLinesByMarkdownIt(body) : hrLinesByShape(body));
   const slides = [];
   let cur = [];
   let start = i + 1;
-  const inFence = fenceLines(lines.slice(i));
-  for (const offset = i; i < lines.length; i++) {
-    const ln = lines[i];
-    if (!inFence[i - offset] && /^(---|\*\*\*|___)\s*$/.test(ln)) {
+  body.forEach((ln, k) => {
+    if (rules.has(k)) {
       slides.push({ line: start, text: cur.join("\n") });
       cur = [];
-      start = i + 2;
-      continue;
+      start = i + k + 2;
+      return;
     }
     cur.push(ln);
-  }
+  });
   slides.push({ line: start, text: cur.join("\n") });
   return { front, slides };
+}
+
+/** 一番外側の水平線の行（0 から）. Marpit と同じく markdown-it の hr トークン（level 0）で決める */
+function hrLinesByMarkdownIt(lines) {
+  return md
+    .parse(lines.join("\n"), {})
+    .filter((t) => t.type === "hr" && t.level === 0 && t.map)
+    .map((t) => t.map[0]);
+}
+
+const HR = /^ {0,3}(?:(?:-[ \t]*){3,}|(?:\*[ \t]*){3,}|(?:_[ \t]*){3,})$/;
+
+/** markdown-it を読めないときの近似: 水平線の形の行のうち、コードの中と、段落の直後の --- （setext の見出し）を除く */
+export function hrLinesByShape(lines) {
+  const inFence = fenceLines(lines);
+  const out = [];
+  let para = false; // 直前の行が段落の続きか
+  lines.forEach((ln, k) => {
+    if (inFence[k]) {
+      para = false;
+      return;
+    }
+    if (HR.test(ln) && !(para && /^ {0,3}-+[ \t]*$/.test(ln))) {
+      out.push(k);
+      para = false;
+      return;
+    }
+    if (/^ {0,3}=+[ \t]*$/.test(ln) && para) {
+      para = false; // setext の見出し（=）
+      return;
+    }
+    const blankLine = /^\s*$/.test(ln);
+    const block = /^ {0,3}(#{1,6}(\s|$)|>|[-*+](\s|$)|\d{1,9}[.)](\s|$)|<)/.test(ln);
+    const indented = !para && /^( {4}|\t)/.test(ln);
+    const tableRow = /^ {0,3}\|/.test(ln); // 表の行（表の直後の --- は区切り）
+    para = !blankLine && !indented && !tableRow && (para || !block || /^ {0,3}</.test(ln));
+    if (/^ {0,3}#{1,6}(\s|$)/.test(ln)) para = false;
+  });
+  return out;
 }
 
 /** コードブロック（``` と ~~~）の行を除く（markdown-it を読めないときだけ使う） */
