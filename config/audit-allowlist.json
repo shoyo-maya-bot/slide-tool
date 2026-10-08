@@ -1,0 +1,29 @@
+{
+  "note": "npm run audit（high 以上で失敗）で、上流が直すまで直せないものだけを理由と期限付きで許可する。期限を過ぎると CI が失敗するので、そのときに見直す",
+  "advisories": [
+    {
+      "id": "GHSA-vfj7-8cjw-p6xm",
+      "package": "braces",
+      "reason": "@tailwindcss/cli → @parcel/watcher 2.5.1（固定）→ micromatch → braces。修正版の braces が無い。watch のファイル監視でリポジトリ内のパターンだけを扱い、外からの入力は渡さない",
+      "until": "2027-01-08"
+    },
+    {
+      "id": "GHSA-jmr9-qjv8-65gv",
+      "package": "extract-zip",
+      "reason": "marp-cli → puppeteer-core → @puppeteer/browsers のブラウザのダウンロード用。修正版が無い。このリポジトリはブラウザを playwright で入れ、puppeteer のダウンロードは使わない",
+      "until": "2027-01-08"
+    },
+    {
+      "id": "GHSA-7pqw-9j4j-h8q3",
+      "package": "extract-zip",
+      "reason": "GHSA-jmr9-qjv8-65gv と同じ（puppeteer のブラウザのダウンロード用。使わない）",
+      "until": "2027-01-08"
+    },
+    {
+      "id": "GHSA-c475-qrg2-pj4r",
+      "package": "basic-ftp",
+      "reason": "marp-cli → puppeteer-core → proxy-agent → get-uri の ftp: 対応。修正版が無い。FTP のプロキシ設定（PAC）は使わない",
+      "until": "2027-01-08"
+    }
+  ]
+}
