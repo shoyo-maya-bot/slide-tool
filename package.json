@@ -23,7 +23,7 @@
     "check": "npm run lint && npm run check:overflow",
     "check:trusted": "npm run lint && npm run check:overflow:trusted",
     "watch": "npm run theme && marp --input-dir slides --server --watch",
-    "watch:trusted": "npm run lint && npm run theme && marp --html --allow-local-files --input-dir slides --server --watch",
+    "watch:trusted": "npm run theme && node scripts/watch-trusted.mjs",
     "test": "node --test tests/*.test.mjs",
     "audit": "node scripts/audit-deps.mjs"
   },
