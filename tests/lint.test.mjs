@@ -255,3 +255,105 @@ test("資料の中に直接書いた SVG の危険な記述も検出する", () 
   assert.deepEqual(ids, ["svg.event_handler", "svg.foreign_object"]);
   assert.match(r.findings[0].location, /a\.md:8$/);
 });
+
+// --- 第 3 回の指摘の再現 ---
+
+test("コードフェンス: ``` の中の ~~~ では閉じない（中の --- でスライドを分けない）", () => {
+  const { slides } = splitSlides("---\nmarp: true\n---\n\n# a\n\n```md\n~~~\n---\n~~~\n```\n\n---\n\n# b\n");
+  assert.equal(slides.length, 2);
+  // ~~~ の中の ``` でも閉じない
+  assert.equal(splitSlides("# a\n\n~~~\n```\n---\n```\n~~~\n").slides.length, 1);
+});
+
+test("コードフェンス: 開始より短い印では閉じない（```` の中の ```）", () => {
+  const { slides } = splitSlides("# a\n\n````md\n```\n---\n```\n````\n\n---\n\n# b\n");
+  assert.equal(slides.length, 2);
+  // 後ろに文字がある行（```js）は閉じる行ではない
+  assert.equal(splitSlides("# a\n\n```\n```js\n---\n```\n").slides.length, 1);
+});
+
+test("コードフェンス: 中の本文は字数に数えない（~~~ のフェンスも）", () => {
+  const long = "あ".repeat(300);
+  const r = runIn({ "slides/a.md": `${deckHead}# コード\n\n~~~text\n${long}\n~~~\n` }, ["slides"], {});
+  assert.equal(r.code, 0, JSON.stringify(r.findings));
+});
+
+test("SVG: / で区切ったイベント属性（<svg/onload=…>）・引用符の無い値も検出する", () => {
+  const dir = mkdtempSync(join(tmpdir(), "svg-slash-"));
+  const cases = {
+    "slash.svg": '<svg/onload=alert(1) viewBox="0 0 1 1"><title>図</title></svg>',
+    "slash2.svg": '<svg viewBox="0 0 1 1"><title>図</title><rect/onclick="x()"/></svg>',
+    "quoted-gt.svg": '<svg viewBox="0 0 1 1"><title>図</title><rect title="a>b" onclick="x()"/></svg>',
+  };
+  for (const [name, body] of Object.entries(cases)) {
+    const p = join(dir, name);
+    writeFileSync(p, body);
+    assert.ok(rules(lintSvg(p)).includes("svg.event_handler"), `${name}: ${JSON.stringify(lintSvg(p))}`);
+  }
+  const unquoted = join(dir, "js.svg");
+  writeFileSync(unquoted, '<svg viewBox="0 0 1 1"><title>図</title><a href=javascript:alert(1)><rect/></a></svg>');
+  assert.ok(rules(lintSvg(unquoted)).includes("svg.javascript_url"));
+  // 誤検出しない: 属性の値の中の onload= という文字
+  const ok = join(dir, "ok.svg");
+  writeFileSync(ok, '<svg viewBox="0 0 1 1"><title>図</title><text font-family="sans-serif" data-x="a onload=b">x</text></svg>');
+  assert.deepEqual(lintSvg(ok), []);
+});
+
+test("Markdown の中の HTML: <script>・任意の要素の on* 属性・javascript: を検出する（SVG の外でも）", () => {
+  const cases = [
+    ["<script>alert(1)</script>", "html.script"],
+    ['<img src="x.png" alt="図" onerror="alert(1)">', "html.event_handler"],
+    ['<img/src="x.png"/alt="図"/onerror=alert(1)>', "html.event_handler"],
+    ['<div class="x" OnMouseOver="x()">本文</div>', "html.event_handler"],
+    ['<a href="javascript:alert(1)">リンク</a>', "html.javascript_url"],
+    ['<iframe src="&#106;avascript:alert(1)"></iframe>', "html.javascript_url"],
+    ["[押す](javascript:alert(1))", "html.javascript_url"],
+    ["[押す]( JavaScript:alert(1) )", "html.javascript_url"],
+  ];
+  for (const [html, rule] of cases) {
+    const r = runIn({ "slides/a.md": `${deckHead}# 図\n\n${html}\n` }, ["slides"], {});
+    assert.equal(r.code, 1, `${html}: ${JSON.stringify(r.findings)}`);
+    const f = r.findings.find((x) => x.rule_id === rule);
+    assert.ok(f, `${html}: ${JSON.stringify(r.findings)}`);
+    assert.equal(f.severity, "error");
+    assert.match(f.location, /a\.md:8$/);
+  }
+});
+
+test("Markdown の中の HTML: コードとして書いた例・コメント・普通の HTML は検出しない", () => {
+  const body = [
+    "# 例",
+    "",
+    "`<script>` や `onload=` はインラインのコードなら動きません",
+    "",
+    "```html",
+    '<img src="x" alt="例" onerror="alert(1)"><script>alert(1)</script>',
+    "```",
+    "",
+    "~~~",
+    "<a href=\"javascript:x()\">x</a>",
+    "~~~",
+    "",
+    "<!-- <script>メモ</script> -->",
+    '<div class="grid grid-cols-2 gap-4" data-online="1">',
+    "",
+    "[資料](https://example.com/a) と [次へ](#2) online onload",
+    "",
+    "</div>",
+  ].join("\n");
+  const r = runIn({ "slides/a.md": `${deckHead}${body}\n` }, ["slides"], {});
+  assert.equal(r.code, 0, JSON.stringify(r.findings));
+  assert.deepEqual(r.findings, []);
+});
+
+test("拡張子の大文字小文字を区別しない（SLIDE.MD・FIG.SVG も検査する）", () => {
+  const r = runIn(
+    { "slides/SLIDE.MD": "# marp: true が無い\n", "slides/b.Md": `${deckHead}# ok\n`, "assets/FIG.SVG": "<svg><title>t</title></svg>" },
+    ["slides", "assets"],
+    {},
+  );
+  assert.equal(r.code, 1);
+  const ids = rules(r.findings);
+  assert.ok(ids.includes("deck.not_marp"), JSON.stringify(r.findings));
+  assert.ok(ids.includes("svg.no_viewbox"), JSON.stringify(r.findings));
+});

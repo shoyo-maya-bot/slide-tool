@@ -94,6 +94,39 @@ export function readText(path) {
   return stripBom(readFileSync(path, "utf8"));
 }
 
+/**
+ * コードフェンスの開始行なら、その印（``` や ~~~~ など）を返す. CommonMark と同じく、行頭の空白は 3 つまで、
+ * ` は 3 つ以上（後ろの情報文字列に ` を含まない）、~ は 3 つ以上
+ */
+export function fenceOpen(ln) {
+  const m = ln.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+  if (!m) return null;
+  if (m[1][0] === "`" && m[2].includes("`")) return null;
+  return m[1];
+}
+
+/** open（開始の印）のコードフェンスを閉じる行か. 同じ文字で、開始以上の長さ、後ろは空白だけ */
+export function fenceCloses(ln, open) {
+  const m = ln.match(/^ {0,3}(`{3,}|~{3,})[ \t]*$/);
+  return !!m && m[1][0] === open[0] && m[1].length >= open.length;
+}
+
+/** コードフェンスの中（開始・終了の行を含む）なら true の配列（行ごと）. 閉じないフェンスは最後まで続く */
+export function fenceLines(lines) {
+  const inside = [];
+  let open = null;
+  for (const ln of lines) {
+    if (open) {
+      inside.push(true);
+      if (fenceCloses(ln, open)) open = null;
+      continue;
+    }
+    open = fenceOpen(ln);
+    inside.push(!!open);
+  }
+  return inside;
+}
+
 /** front matter とスライドに分ける（コードブロック内の --- は区切りにしない） */
 export function splitSlides(text) {
   const lines = stripBom(text).replace(/\r\n/g, "\n").split("\n");
@@ -109,11 +142,10 @@ export function splitSlides(text) {
   const slides = [];
   let cur = [];
   let start = i + 1;
-  let fence = false;
-  for (; i < lines.length; i++) {
+  const inFence = fenceLines(lines.slice(i));
+  for (const offset = i; i < lines.length; i++) {
     const ln = lines[i];
-    if (/^(```|~~~)/.test(ln)) fence = !fence;
-    if (!fence && /^(---|\*\*\*|___)\s*$/.test(ln)) {
+    if (!inFence[i - offset] && /^(---|\*\*\*|___)\s*$/.test(ln)) {
       slides.push({ line: start, text: cur.join("\n") });
       cur = [];
       start = i + 2;
@@ -132,9 +164,8 @@ function directive(text, name) {
 }
 
 function stripNonBody(text) {
-  return text
+  return dropFences(text)
     .replace(/<!--[\s\S]*?-->/g, "")
-    .replace(/```[\s\S]*?```/g, "")
     .replace(/<svg[\s\S]*?<\/svg>/g, "")
     .replace(/<[^>]+>/g, "")
     .replace(/!\[[^\]]*\]\([^)]*\)/g, "");
@@ -142,21 +173,26 @@ function stripNonBody(text) {
 
 /** コードブロック（``` と ~~~）の行を除く（markdown-it を読めないときだけ使う） */
 function dropFences(text) {
-  const out = [];
-  let fence = null;
-  for (const ln of text.split("\n")) {
-    const m = ln.match(/^\s{0,3}(`{3,}|~{3,})/);
-    if (fence) {
-      if (m && m[1][0] === fence[0] && m[1].length >= fence.length && !ln.trim().slice(m[1].length).trim()) fence = null;
-      continue;
-    }
-    if (m) {
-      fence = m[1];
-      continue;
-    }
-    out.push(ln);
-  }
-  return out.join("\n");
+  const lines = text.split("\n");
+  const inFence = fenceLines(lines);
+  return lines.filter((_, i) => !inFence[i]).join("\n");
+}
+
+/** 改行以外を空白にする（行番号・位置を変えずに中身を消す） */
+const blank = (s) => s.replace(/[^\n]/g, " ");
+
+/**
+ * HTML として動かない部分（コードフェンス・インラインのコード・HTML コメント）を空白にする. 行番号と位置は変えない.
+ * スクリプトの検査で、コードとして書いた例（`<script>` など）を誤って拾わないため
+ */
+export function maskCode(text) {
+  const lines = text.split("\n");
+  const inFence = fenceLines(lines);
+  return lines
+    .map((ln, i) => (inFence[i] ? blank(ln) : ln))
+    .join("\n")
+    .replace(/<!--[\s\S]*?-->/g, blank)
+    .replace(/(`+)(?!`)(?:(?!\n[ \t]*\n)[\s\S])*?[^`]\1(?!`)/g, blank); // 空行をまたがない
 }
 
 /** 見出し（最初の # / ##）・一番外側の箇条書きの数・入れ子の深さ. コードブロックの中は数えない */
@@ -226,11 +262,15 @@ export function lintFile(path, conf) {
   if (!/^marp:\s*true\s*$/m.test(front)) out.push({ rule_id: "deck.not_marp", severity: "error", message: "front matter に marp: true がありません", location: `${path}:1` });
   if (!/^theme:\s*\S+/m.test(front)) out.push({ rule_id: "deck.no_theme", severity: "warning", message: "front matter に theme がありません（standard を推奨）", location: `${path}:1` });
   slides.forEach((s, i) => out.push(...lintSlide(s, i, conf, path)));
-  // 資料の中に直接書いた SVG も、:trusted（HTML 有効）で出力すると動くので同じ危険な記述を探す
-  for (const m of raw.matchAll(/<svg\b[\s\S]*?<\/svg>/gi)) {
-    const line = raw.slice(0, m.index).split(/\r?\n/).length;
-    for (const d of svgDangers(m[0])) out.push({ ...d, location: `${path}:${line}` });
+  // :trusted（HTML 有効）で出力すると、資料の中に直接書いた HTML・SVG も動くので、スクリプトを動かせる記述を探す.
+  // コードフェンス・インラインのコード・HTML コメントの中は動かないので見ない
+  const lineAt = (text, index) => text.slice(0, index).split(/\r?\n/).length;
+  let scan = maskCode(raw);
+  for (const m of scan.matchAll(/<svg\b[\s\S]*?<\/svg>/gi)) {
+    for (const d of svgDangers(m[0])) out.push({ ...d, location: `${path}:${lineAt(raw, m.index)}` });
   }
+  scan = scan.replace(/<svg\b[\s\S]*?<\/svg>/gi, blank);
+  for (const d of htmlDangers(scan)) out.push({ rule_id: d.rule_id, severity: d.severity, message: d.message, location: `${path}:${lineAt(raw, d.index)}` });
   return out;
 }
 
@@ -243,21 +283,84 @@ export function lintFile(path, conf) {
 export function svgDangers(text) {
   const out = [];
   const add = (rule_id, message) => out.push({ rule_id, severity: "error", message });
-  if (/<script\b/i.test(text)) add("svg.script", "script を含めないでください");
-  const events = new Set();
-  for (const tag of text.matchAll(/<[a-zA-Z][^>]*>/g)) {
-    for (const a of tag[0].matchAll(/\s(on[a-z]+)\s*=/gi)) events.add(a[1].toLowerCase());
-  }
+  const tags = scanTags(text);
+  if (tags.some((t) => t.name === "script")) add("svg.script", "script を含めないでください");
+  const events = new Set(tags.flatMap((t) => t.attrs.filter((a) => isEventAttr(a.name)).map((a) => a.name)));
   if (events.size) add("svg.event_handler", `イベント属性（${[...events].join(", ")}）を含めないでください（読み込み・クリックでスクリプトが動きます）`);
   if (/<foreignObject\b/i.test(text)) add("svg.foreign_object", "foreignObject を含めないでください（中の HTML が動きます。文字は <text> で書きます）");
-  for (const m of text.matchAll(/\b(?:xlink:)?href\s*=\s*(["'])([\s\S]*?)\1/gi)) {
-    const v = decodeEntities(m[2]).replace(/[\s\u0000-\u001f]/g, "").toLowerCase();
-    if (v.startsWith("javascript:")) {
-      add("svg.javascript_url", "javascript: のリンクを含めないでください");
-      break;
-    }
+  if (tags.some((t) => t.attrs.some((a) => isJavascriptUrl(a.value)))) add("svg.javascript_url", "javascript: のリンクを含めないでください");
+  return out;
+}
+
+/**
+ * Markdown の中の HTML（SVG の外）で、スクリプトを動かせる記述を探す. → [{ rule_id, severity, message, index }]
+ * - <script> 要素
+ * - on で始まるイベント属性（どの要素でも. <img/onerror=…> のような / 区切りも）
+ * - 属性の値・Markdown のリンク先の javascript: URL
+ * text はコードを空白にしたもの（maskCode）を渡す
+ */
+export function htmlDangers(text) {
+  const out = [];
+  const add = (rule_id, message, index) => out.push({ rule_id, severity: "error", message, index });
+  for (const t of scanTags(text)) {
+    if (t.name === "script") add("html.script", "script を含めないでください（:trusted で出力するとスクリプトが動きます）", t.index);
+    const events = t.attrs.filter((a) => isEventAttr(a.name)).map((a) => a.name);
+    if (events.length) add("html.event_handler", `<${t.name}> のイベント属性（${events.join(", ")}）を含めないでください（:trusted で出力するとスクリプトが動きます）`, t.index);
+    if (t.attrs.some((a) => isJavascriptUrl(a.value))) add("html.javascript_url", `<${t.name}> に javascript: の URL を含めないでください`, t.index);
+  }
+  // Markdown のリンク・画像 [x](javascript:…) と自動リンク <javascript:…>
+  for (const m of text.matchAll(/\]\(\s*<?([^)>]*)|<([a-zA-Z][a-zA-Z0-9+.-]{1,31}:[^\s<>]*)>/g)) {
+    if (isJavascriptUrl(m[1] ?? m[2])) add("html.javascript_url", "javascript: のリンクを含めないでください", m.index);
   }
   return out;
+}
+
+const isEventAttr = (name) => /^on[a-z]+$/i.test(name);
+
+/** javascript: の URL か（空白・制御文字・大文字・文字参照で書いたものも含む） */
+function isJavascriptUrl(value) {
+  return decodeEntities(value).replace(/[\s\u0000-\u001f]/g, "").toLowerCase().startsWith("javascript:");
+}
+
+/**
+ * HTML の開始タグを読む. → [{ name, attrs: [{ name, value }], index }]（name は小文字）
+ * ブラウザと同じく、属性の区切りは空白と / （<svg/onload=…>）、値は引用符あり・なしの両方.
+ * 引用符の中の > でタグを終わりにしない. 取りこぼさないよう、どの < からも読み直す（安全側に多めに拾う）
+ */
+export function scanTags(text) {
+  const tags = [];
+  const n = text.length;
+  for (const m of text.matchAll(/<([a-zA-Z][^\s/>]*)/g)) {
+    let i = m.index + m[0].length;
+    const attrs = [];
+    while (i < n) {
+      while (i < n && /[\s/]/.test(text[i])) i++;
+      if (i >= n || text[i] === ">") break;
+      const start = i++;
+      while (i < n && !/[\s/>=]/.test(text[i])) i++;
+      const name = text.slice(start, i).toLowerCase();
+      let j = i;
+      while (j < n && /\s/.test(text[j])) j++;
+      let value = "";
+      if (text[j] === "=") {
+        i = j + 1;
+        while (i < n && /\s/.test(text[i])) i++;
+        const q = text[i];
+        if (q === '"' || q === "'") {
+          const end = text.indexOf(q, i + 1);
+          value = text.slice(i + 1, end < 0 ? n : end);
+          i = end < 0 ? n : end + 1;
+        } else {
+          const s = i;
+          while (i < n && !/[\s>]/.test(text[i])) i++;
+          value = text.slice(s, i);
+        }
+      }
+      attrs.push({ name, value });
+    }
+    tags.push({ name: m[1].toLowerCase(), attrs, index: m.index });
+  }
+  return tags;
 }
 
 /** 文字参照（&#106; &#x6A; &colon; など）を戻す（javascript: を文字参照で隠したものを見つけるため） */
@@ -334,8 +437,9 @@ export function main(argv) {
     ...files.flatMap((f) =>
       findBanned(relPath(f), conf.bannedTerms).map((b) => ({ rule_id: "file.banned_term", severity: "error", message: bannedMessage(b.term), location: f })),
     ),
-    ...files.filter((f) => extname(f) === ".md").flatMap((f) => lintFile(f, conf)),
-    ...files.filter((f) => extname(f) === ".svg").flatMap((f) => lintSvg(f, conf)),
+    // 拡張子は大文字小文字を区別しない（Windows で保存した SLIDE.MD・FIG.SVG も検査する）
+    ...files.filter((f) => extname(f).toLowerCase() === ".md").flatMap((f) => lintFile(f, conf)),
+    ...files.filter((f) => extname(f).toLowerCase() === ".svg").flatMap((f) => lintSvg(f, conf)),
   ];
   const errors = findings.filter((f) => f.severity === "error").length;
   if (format === "json") {
