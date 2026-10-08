@@ -28,7 +28,14 @@ function stripNonBody(text) {
 
 /** タイトルの見た目の文字（タグを除き、消し残しの < > も数えない. 字数を数えるためで、無害化ではない） */
 export function titleText(title) {
-  return title.replace(/<[^>]*>/g, "").replace(/[<>]/g, "");
+  let out = "";
+  let inTag = false;
+  for (const ch of title) {
+    if (ch === "<") inTag = true;
+    else if (ch === ">") inTag = false;
+    else if (!inTag) out += ch;
+  }
+  return out;
 }
 
 /** 見出し（最初の # / ##）・一番外側の箇条書きの数・入れ子の深さ. コードブロックの中は数えない */

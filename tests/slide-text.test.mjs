@@ -31,5 +31,6 @@ test("タイトルの字数: タグと消し残しの < > を数えない", asyn
   const { titleText } = await import("../scripts/lint/slide.mjs");
   assert.equal(titleText("<span>短い</span>"), "短い");
   assert.equal(titleText("<scr<script>ipt>短い"), "ipt短い");
-  assert.equal(titleText("a < b"), "a  b");
+  assert.equal(titleText("a > b"), "a  b");
+  assert.ok(!/[<>]/.test(titleText("<<a>>b<c")));
 });
