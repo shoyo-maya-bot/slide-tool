@@ -46,6 +46,11 @@ export function decodeEntities(s) {
     .replace(/&#x([0-9a-f]+);?/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
     .replace(/&#(\d+);?/g, (_, d) => String.fromCodePoint(Number(d)))
     .replace(/&colon;/gi, ":")
+    .replace(/&quot;/gi, '"')
+    .replace(/&apos;/gi, "'")
+    .replace(/&lpar;/gi, "(")
+    .replace(/&rpar;/gi, ")")
+    .replace(/&sol;/gi, "/")
     .replace(/&tab;/gi, "\t")
     .replace(/&newline;/gi, "\n");
 }
