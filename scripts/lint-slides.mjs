@@ -84,9 +84,19 @@ export function width(s) {
   return w;
 }
 
+/** 先頭の BOM（U+FEFF）を除く. Windows のメモ帳などで保存すると付き、付いたままだと front matter の --- を認識できない */
+export function stripBom(text) {
+  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+}
+
+/** ファイルを UTF-8 で読み、BOM を除く */
+export function readText(path) {
+  return stripBom(readFileSync(path, "utf8"));
+}
+
 /** front matter とスライドに分ける（コードブロック内の --- は区切りにしない） */
 export function splitSlides(text) {
-  const lines = text.replace(/\r\n/g, "\n").split("\n");
+  const lines = stripBom(text).replace(/\r\n/g, "\n").split("\n");
   let front = "";
   let i = 0;
   if (lines[0] === "---") {
@@ -206,7 +216,7 @@ export function lintSlide(slide, index, conf, file) {
 const bannedMessage = (term) => `使ってはいけない語「${term}」があります（表記ゆれ・全角を含む。config/slide-lint.json の bannedTerms）`;
 
 export function lintFile(path, conf) {
-  const raw = readFileSync(path, "utf8");
+  const raw = readText(path);
   const { front, slides } = splitSlides(raw);
   const out = [];
   // 禁止語はファイル全体（front matter の header・footer、発表者メモ、インラインの SVG、コードを含む）で探す
@@ -216,11 +226,52 @@ export function lintFile(path, conf) {
   if (!/^marp:\s*true\s*$/m.test(front)) out.push({ rule_id: "deck.not_marp", severity: "error", message: "front matter に marp: true がありません", location: `${path}:1` });
   if (!/^theme:\s*\S+/m.test(front)) out.push({ rule_id: "deck.no_theme", severity: "warning", message: "front matter に theme がありません（standard を推奨）", location: `${path}:1` });
   slides.forEach((s, i) => out.push(...lintSlide(s, i, conf, path)));
+  // 資料の中に直接書いた SVG も、:trusted（HTML 有効）で出力すると動くので同じ危険な記述を探す
+  for (const m of raw.matchAll(/<svg\b[\s\S]*?<\/svg>/gi)) {
+    const line = raw.slice(0, m.index).split(/\r?\n/).length;
+    for (const d of svgDangers(m[0])) out.push({ ...d, location: `${path}:${line}` });
+  }
   return out;
 }
 
+/**
+ * SVG の中の、スクリプトを動かせる記述を探す. → [{ rule_id, severity, message }]
+ * - on で始まるイベント属性（onload・onclick など）
+ * - foreignObject（中に HTML を入れられる）
+ * - href / xlink:href の javascript: URL（空白・大文字・文字参照で書いたものも含む）
+ */
+export function svgDangers(text) {
+  const out = [];
+  const add = (rule_id, message) => out.push({ rule_id, severity: "error", message });
+  if (/<script\b/i.test(text)) add("svg.script", "script を含めないでください");
+  const events = new Set();
+  for (const tag of text.matchAll(/<[a-zA-Z][^>]*>/g)) {
+    for (const a of tag[0].matchAll(/\s(on[a-z]+)\s*=/gi)) events.add(a[1].toLowerCase());
+  }
+  if (events.size) add("svg.event_handler", `イベント属性（${[...events].join(", ")}）を含めないでください（読み込み・クリックでスクリプトが動きます）`);
+  if (/<foreignObject\b/i.test(text)) add("svg.foreign_object", "foreignObject を含めないでください（中の HTML が動きます。文字は <text> で書きます）");
+  for (const m of text.matchAll(/\b(?:xlink:)?href\s*=\s*(["'])([\s\S]*?)\1/gi)) {
+    const v = decodeEntities(m[2]).replace(/[\s\u0000-\u001f]/g, "").toLowerCase();
+    if (v.startsWith("javascript:")) {
+      add("svg.javascript_url", "javascript: のリンクを含めないでください");
+      break;
+    }
+  }
+  return out;
+}
+
+/** 文字参照（&#106; &#x6A; &colon; など）を戻す（javascript: を文字参照で隠したものを見つけるため） */
+function decodeEntities(s) {
+  return s
+    .replace(/&#x([0-9a-f]+);?/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&#(\d+);?/g, (_, d) => String.fromCodePoint(Number(d)))
+    .replace(/&colon;/gi, ":")
+    .replace(/&tab;/gi, "\t")
+    .replace(/&newline;/gi, "\n");
+}
+
 export function lintSvg(path, conf = DEFAULTS) {
-  const text = readFileSync(path, "utf8");
+  const text = readText(path);
   const out = [];
   const add = (severity, rule_id, message) => out.push({ rule_id, severity, message, location: path });
   for (const f of findBanned(text, conf.bannedTerms)) {
@@ -228,7 +279,7 @@ export function lintSvg(path, conf = DEFAULTS) {
   }
   if (!/<svg[^>]*\bviewBox=/.test(text)) add("error", "svg.no_viewbox", "viewBox がありません（拡大縮小で崩れます）");
   if (/(xlink:)?href=["']https?:/.test(text)) add("error", "svg.external_ref", "外部 URL を参照しています（PDF / PPTX で表示されません）");
-  if (/<script\b/.test(text)) add("error", "svg.script", "script を含めないでください");
+  for (const d of svgDangers(text)) add(d.severity, d.rule_id, d.message);
   if (/<text\b/.test(text) && !/font-family/.test(text)) add("warning", "svg.no_font", "文字があるのに font-family がありません（環境で字形が変わります）");
   if (!/<title\b/.test(text)) add("warning", "svg.no_title", "<title> がありません（読み上げ・検索用）");
   return out;
@@ -257,7 +308,7 @@ export function main(argv) {
   }
   let conf;
   try {
-    conf = { ...DEFAULTS, ...(existsSync(confPath) ? JSON.parse(readFileSync(confPath, "utf8")) : {}) };
+    conf = { ...DEFAULTS, ...(existsSync(confPath) ? JSON.parse(readText(confPath)) : {}) };
   } catch (e) {
     console.error(`設定を読めません: ${confPath}: ${e.message}`);
     return 2;
