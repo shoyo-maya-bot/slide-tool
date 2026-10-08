@@ -46,5 +46,5 @@
 
 1. `layouts/catalog.md` に見本を足す（No を振る）
 2. スライド全体の作りが変わるならクラスとして `themes/standard.css` に書き、`config/slide-lint.json` の `layouts` に足す
-3. `npm run check` ではみ出しが無いことを確かめる
+3. `npm run check:trusted` ではみ出しが無いことを確かめる
 4. この表に追記する

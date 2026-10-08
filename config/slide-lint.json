@@ -16,5 +16,10 @@
     "big-number"
   ],
   "bannedTerms": [],
-  "bannedTermsNote": "社名・顧客名・システム名・個人名など、資料に出してはいけない語を足す（大文字小文字は区別しない）"
+  "bannedTermsNote": "社名・顧客名・システム名・個人名など、資料に出してはいけない語を足す（大文字小文字・全角半角は区別しない。front matter・SVG・ファイル名も検査する）",
+  "exclude": [
+    "README.md",
+    "docs/**"
+  ],
+  "excludeNote": "検査しないファイル（作業フォルダからの相対パス。* は / 以外、** は何でも）"
 }
