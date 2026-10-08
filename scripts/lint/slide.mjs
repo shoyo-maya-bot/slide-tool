@@ -26,6 +26,11 @@ function stripNonBody(text) {
     .replace(/[<>]/g, " "); // 消し残しの < > は本文の字数に数えない
 }
 
+/** タイトルの見た目の文字（タグを除き、消し残しの < > も数えない. 字数を数えるためで、無害化ではない） */
+export function titleText(title) {
+  return title.replace(/<[^>]*>/g, "").replace(/[<>]/g, "");
+}
+
 /** 見出し（最初の # / ##）・一番外側の箇条書きの数・入れ子の深さ. コードブロックの中は数えない */
 export function structure(text) {
   if (md) {
@@ -82,8 +87,9 @@ export function lintSlide(slide, index, conf, file) {
 
   const st = structure(text);
   if (st.title === null && !conf.noTitleLayouts.includes(layout) && text.trim()) add("error", "slide.no_title", "見出し（# タイトル）がありません。1 枚に 1 つのメッセージを見出しで書きます");
-  if (st.title !== null && width(st.title.replace(/<[^>]+>/g, "")) > conf.maxTitleChars) {
-    add("warning", "slide.title_long", `タイトルが長い（全角 ${width(st.title)} 字 > ${conf.maxTitleChars}）。2 行になると下の要素が押し出されます`);
+  const titleWidth = st.title === null ? 0 : width(titleText(st.title));
+  if (titleWidth > conf.maxTitleChars) {
+    add("warning", "slide.title_long", `タイトルが長い（全角 ${titleWidth} 字 > ${conf.maxTitleChars}）。2 行になると下の要素が押し出されます`);
   }
   if (st.top > conf.maxBullets) add("error", "slide.too_many_bullets", `箇条書きが ${st.top} 個（上限 ${conf.maxBullets}）。分割するか表・カードにします`);
   if (st.depth > conf.maxDepth) add("warning", "slide.deep_nesting", `箇条書きの入れ子が ${st.depth} 段（上限 ${conf.maxDepth}）`);

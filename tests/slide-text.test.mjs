@@ -26,3 +26,10 @@ test("指定と代替テキストを並べたときは残りを代替テキス�
   // bg が無いときの fit・left は Marp の指定ではない（代替テキストの一部）
   assert.equal(altWithoutMarpKeywords("fit left"), "fit left");
 });
+
+test("タイトルの字数: タグと消し残しの < > を数えない", async () => {
+  const { titleText } = await import("../scripts/lint/slide.mjs");
+  assert.equal(titleText("<span>短い</span>"), "短い");
+  assert.equal(titleText("<scr<script>ipt>短い"), "ipt短い");
+  assert.equal(titleText("a < b"), "a  b");
+});
