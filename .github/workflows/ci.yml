@@ -20,6 +20,9 @@ jobs:
           node-version: 22
       # 日本語フォントは OS に入れず、package-lock.json で固定した @fontsource/noto-sans-jp（テーマに同梱）を使う
       - run: npm ci --no-audit --no-fund
+      # 依存の既知の脆弱性（npm audit --audit-level=high と同じ基準）。上流待ちのものだけ config/audit-allowlist.json に理由と期限付きで許可
+      - name: dependency audit (high and above)
+        run: npm run audit
       - name: bundled font and its license are installed
         run: test -f node_modules/@fontsource/noto-sans-jp/400.css && test -f node_modules/@fontsource/noto-sans-jp/LICENSE
       - run: npx playwright install chromium
