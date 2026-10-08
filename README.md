@@ -44,7 +44,13 @@ VS Code では拡張機能「Marp for VS Code」でプレビューできます�
 日本語フォント **Noto Sans JP**（SIL Open Font License 1.1）を npm のパッケージ `@fontsource/noto-sans-jp` で同梱しています。
 `themes/standard.css` の `/* @fontsource noto-sans-jp 400 700 */` を、`npm run theme` が `@font-face` に置き換えます
 （フォントファイルは `node_modules` から読む）。PC に入っているフォントに左右されないので、PDF / PPTX の見た目と
-`npm run check:overflow` の結果がどの PC でもそろいます。同梱フォントを読み込めなかったときは、はみ出しチェックを失敗（終了コード 3）にします。
+`npm run check:overflow` の結果がどの PC でもそろいます。同梱フォントを 1 つも読み込めなかったときは、はみ出しチェックを失敗（終了コード 3）にします。
+一部だけ読み込めなかったときは、どのフォント（太さ・文字の範囲・ファイル名）かを警告に出して続けます。
+
+はみ出しチェックは、本番の出力と同じ扱いで測ります。`npm run check:overflow` は `npm run pdf` と同じく資料の HTML と
+ローカルのファイルを無効にして（同梱フォントも読まないので PC のフォントで）、`npm run check:overflow:trusted` は
+`npm run pdf:trusted` と同じく有効にして測ります。`:trusted` で出力する資料は `npm run check:trusted` で確かめてください。
+測定用の HTML は `build/check-XXXX` に作り、終わったら（失敗・中断でも）消します。
 
 - 依存の版は `package-lock.json` で固定しています。入れるときは `npm ci`（setup も `npm ci`）。依存を変えたら `package-lock.json` もコミットしてください
 - フォントは `dist/*.pdf` に埋め込まれます。`dist/*.html` は作った PC のフォントファイルを参照するので、ほかの PC で開くとその PC のフォントで表示されます
@@ -97,7 +103,7 @@ HTML の中に Markdown を書くときは前後に空行を入れます。細�
 | error | 見出しが無い / 箇条書きが多い / 本文が多い / 禁止語 / `marp: true` が無い | 箇条書き 6 個、本文 260 字 |
 | error（禁止語） | 本文・front matter（`header:`・`footer:`）・発表者メモ・インラインの SVG・SVG ファイル・ファイル名 | 全角半角・大文字小文字をそろえて比べる（NFKC） |
 | warning | タイトルが長い / 入れ子が深い / 画像の代替テキストが無い / 定義に無いレイアウト | タイトル 全角 32 字、入れ子 2 段 |
-| error（SVG） | viewBox が無い / 外部参照 / script | |
+| error（SVG） | viewBox が無い / 外部参照 / script / イベント属性（`onload` など `on*`）/ `foreignObject` / `javascript:` のリンク | SVG ファイルと、資料の中に直接書いた SVG の両方 |
 | error（描画） | スライドの外にはみ出す（outside）/ 箱の中で切れる（clipped）/ 高さを超える（too_tall） | 許容 3px |
 
 `bannedTerms` に社名・顧客名・システム名などを登録すると、資料に入ったときに止まります。
@@ -124,7 +130,7 @@ npm run lint
 ```
 
 はみ出しのテストは playwright が無いと理由を出してスキップします（CI ではスキップせずに失敗にします）。
-CI は Linux（PDF / PPTX まで出力）と Windows（`npm ci`・静的チェック・テスト）で動かします。
+CI は Linux（PDF / PPTX まで出力）と Windows（`npm ci`・静的チェック・テスト・はみ出しチェック・PDF 出力）で動かします。
 
 ## 変更点
 
@@ -134,6 +140,8 @@ CI は Linux（PDF / PPTX まで出力）と Windows（`npm ci`・静的チェ�
 | 2026-10 | 禁止語を front matter・SVG・ファイル名でも探し、全角半角をそろえて比べる | 今まで通っていた資料が止まることがある。語を直す |
 | 2026-10 | 除外を設定の `exclude` にした（前はパスに `README` か `docs` を含むファイルをすべて除外） | `slides/docs-x/` などにある資料も検査される |
 | 2026-10 | `npm run lint` が `assets/` の SVG も検査する | なし |
+| 2026-10 | SVG のイベント属性・`foreignObject`・`javascript:` のリンクを error にする。BOM 付きのファイルも front matter を認識する | 該当する SVG を直す（文字は `<text>` で書く） |
+| 2026-10 | `npm run check:overflow` を `npm run pdf` と同じ扱い（HTML 無効）で測る。測定用の `build/check` を残さない | `:trusted` で出力する資料は `npm run check:trusted` で測る |
 
 ## セキュリティ・ライセンス
 

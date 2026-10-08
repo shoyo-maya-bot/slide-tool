@@ -31,8 +31,12 @@ jobs:
       - name: default (untrusted) build does not fail
         run: npm run pdf
       # リポジトリ同梱の資料（slides/ のサンプルとレイアウト集）は信頼できる資料なので、HTML を有効にして確かめる
+      - name: overflow check (rendered, default settings like npm run pdf)
+        run: npm run check:overflow
       - name: overflow check (rendered, trusted bundled decks)
         run: npm run check:overflow:trusted
+      - name: no leftover measurement build
+        run: "! ls -d build/check* 2>/dev/null"
       - name: build PDF / PPTX / catalog (trusted bundled decks)
         run: npm run pdf:trusted && npm run pptx:trusted && npm run catalog
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -57,3 +61,26 @@ jobs:
         run: npm test
       - name: lint (text volume, titles, SVG)
         run: npm run lint
+      # Windows でも PDF を出せることを確かめる（同梱フォントの file:// URL・ドライブ名付きのパスを含む）
+      - name: overflow check (trusted bundled decks)
+        run: npm run check:overflow:trusted
+      - name: build PDF (default and trusted)
+        run: npm run pdf && npm run pdf:trusted
+      - name: PDF was written
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in dist/*.pdf; do
+            test -s "$f"
+            head -c 5 "$f" | grep -q '%PDF-'
+            echo "ok: $f ($(wc -c < "$f") bytes)"
+          done
+          ls dist/*.pdf
+      # 測定用の一時フォルダ（build/check-*）が残っていない
+      - name: no leftover measurement build
+        shell: bash
+        run: "! ls -d build/check* 2>/dev/null"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: slides-windows
+          path: dist/
