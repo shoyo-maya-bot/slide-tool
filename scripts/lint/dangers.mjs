@@ -235,3 +235,74 @@ export function isJavascriptUrl(value) {
   if (v.startsWith("javascript:") || v.startsWith("vbscript:")) return true;
   return v.startsWith("data:") && !/^data:image\/(png|jpe?g|gif|webp)[;,]/.test(v);
 }
+
+// Marp のディレクティブのうち、値が CSS としてスライドに入るもの（_ 付きはそのスライドだけ）
+const CSS_DIRECTIVES = /^_?(style|backgroundImage|backgroundColor|backgroundPosition|backgroundRepeat|backgroundSize|color)$/i;
+// 値が Markdown（HTML を含む）としてスライドに入るもの
+const MARKDOWN_DIRECTIVES = /^_?(header|footer)$/i;
+
+/**
+ * YAML のマッピング（front matter・ディレクティブを書いた HTML コメントの中身）から、キーと値を取り出す. → [{ key, value, offset }]
+ * Marp と同じく 1 つに複数の指定を書いたもの、ブロック（style: | の次の字下げした行）も読む. offset は text の中のキーの位置.
+ * YAML を完全には解釈しない. 検査のためなので、引用符を外し、字下げした続きの行を値に含める（多めに拾う）
+ */
+export function directiveEntries(text) {
+  const lines = text.split("\n");
+  const out = [];
+  let pos = 0;
+  const starts = lines.map((ln) => {
+    const s = pos;
+    pos += ln.length + 1;
+    return s;
+  });
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(/^([ \t]*)(_?[A-Za-z][\w-]*)[ \t]*:(?:[ \t]+|$)(.*)$/);
+    if (!m) continue;
+    const indent = m[1].length;
+    const parts = [m[3]];
+    let j = i + 1;
+    // 続きの行（キーより深く字下げした行と空行）. 引用符の中の改行で続く値もここで拾う
+    while (j < lines.length && (/^\s*$/.test(lines[j]) || lines[j].match(/^[ \t]*/)[0].length > indent)) parts.push(lines[j++]);
+    out.push({ key: m[2], value: unquoteYaml(parts.join("\n").replace(/^[ \t]*[|>][+-]?[ \t]*(\n|$)/, "")), offset: starts[i] + indent });
+    i = j - 1;
+  }
+  return out;
+}
+
+/** YAML の値の前後の引用符を外し、二重引用符の中のエスケープ（\" \\ \xNN \uNNNN）を戻す */
+function unquoteYaml(v) {
+  const t = v.trim();
+  if (/^'[\s\S]*'$/.test(t)) return t.slice(1, -1).replace(/''/g, "'");
+  if (/^"[\s\S]*"$/.test(t)) {
+    return t
+      .slice(1, -1)
+      .replace(/\\x([0-9a-f]{2})|\\u([0-9a-f]{4})|\\U([0-9a-f]{8})/gi, (_, a, b, c) => String.fromCodePoint(parseInt(a || b || c, 16)))
+      .replace(/\\(.)/g, "$1");
+  }
+  return t;
+}
+
+/**
+ * Marp のディレクティブ（front matter と、スライドの中の HTML コメント）で、外部のものを読む・スクリプトを動かせる記述を探す.
+ * → [{ rule_id, severity, message, index }]（index は渡した text の中の位置）
+ * - style・backgroundImage・_backgroundImage など値が CSS になるもの: @import、外部や file: の url()、資料のフォルダの外を読む url() など（cssDangers）
+ * - header・footer（_ 付きも）: 値は Markdown として描画されるので、HTML・画像を htmlDangers と同じく見る（コメントの中のものだけ.
+ *   front matter の中は本文と一緒に htmlDangers で見ている）
+ * front は front matter の中身、frontOffset は text の中の front matter の中身の位置. コメントは text（コードは空白にしておく）から探す
+ */
+export function directiveDangers(text, { front = "", frontOffset = 0, ctx = null } = {}) {
+  const out = [];
+  const check = (entries, base, fromComment) => {
+    for (const e of entries) {
+      const at = base + e.offset;
+      if (CSS_DIRECTIVES.test(e.key)) {
+        for (const d of cssDangers(e.value, ctx)) out.push({ rule_id: "directive.external_ref", severity: "error", message: `ディレクティブ ${e.key}: ${d}`, index: at });
+      } else if (fromComment && MARKDOWN_DIRECTIVES.test(e.key)) {
+        for (const d of htmlDangers(e.value, ctx)) out.push({ rule_id: d.rule_id, severity: "error", message: `ディレクティブ ${e.key}: ${d.message}`, index: at });
+      }
+    }
+  };
+  if (front) check(directiveEntries(front), frontOffset, false);
+  for (const m of text.matchAll(/<!--([\s\S]*?)-->/g)) check(directiveEntries(m[1]), m.index + 4, true);
+  return out;
+}

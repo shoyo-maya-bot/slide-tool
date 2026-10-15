@@ -6,7 +6,9 @@
 //     --build-trusted は npm run pdf:trusted と同じ扱い（--html --allow-local-files）で作って、同じ読み込み方で測る.
 //   node scripts/check-overflow.mjs <作った HTML のフォルダかファイル> [--format json]（従来どおり。trusted の扱いで測る）
 // 検出: スライドの外にはみ出した要素 / 内容がスライドより高い / 要素の中で文字が溢れている（scroll > client）
-// 終了コード: 0 問題なし / 1 はみ出しあり / 2 引数の誤り・資料を変換できない / 3 ブラウザを起動できない・同梱フォントを 1 つも読み込めない
+// --build-trusted の資料は、変換の前に lint（npm run lint と同じ規則）を流し、error があれば変換せずに終了コード 2 で止める
+// （HTML とローカルのファイルを有効にして描画するため. npm run check:overflow:trusted も先に npm run lint を流す）.
+// 終了コード: 0 問題なし / 1 はみ出しあり / 2 引数の誤り・資料を変換できない・trusted の資料に lint の error / 3 ブラウザを起動できない・同梱フォントを 1 つも読み込めない
 // 同梱フォント（テーマの @font-face）を trusted で 1 つも読み込めなかったときは、PC のフォントで測った結果になるので失敗にする.
 // 一部だけ読めないときは、どのフォントかを警告に出して続ける.
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
@@ -197,6 +199,18 @@ export async function withBuild(sources, fn, { root = "build", convert } = {}) {
   }
 }
 
+/**
+ * --build-trusted の資料に lint を流す. error があれば exitCode 2 の例外. runLint はテスト用（既定は scripts/lint の main）
+ */
+export async function lintTrusted(sources, runLint) {
+  const paths = sources.filter((s) => s.trusted).map((s) => s.path);
+  if (!paths.length) return;
+  if (!runLint) runLint = (await import("./lint/cli.mjs")).main;
+  if (runLint(paths) !== 0) {
+    throw Object.assign(new Error(`lint で error があるため、HTML とローカルのファイルを有効にした描画（--build-trusted）をしません: ${paths.join(", ")}`), { exitCode: 2 });
+  }
+}
+
 /** 引数を解析する. --build / --build-trusted は何回でも書ける */
 export function parseArgs(argv) {
   const out = { format: "markdown", sources: [], html: [] };
@@ -269,6 +283,7 @@ async function main(argv) {
   const launch = () => chromium.launch(exe ? { executablePath: exe } : {});
   try {
     if (!args.sources.length) return summarize(await check(files, launch), args.format);
+    await lintTrusted(args.sources);
     return await withBuild(args.sources, async (built) => {
       if (!built.length) {
         console.error("資料（.md）がありません");

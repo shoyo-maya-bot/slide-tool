@@ -2,9 +2,9 @@
 //
 // 見出しと箇条書きは、Marp と同じ markdown-it（package-lock.json で固定）のトークンで数える（コードブロックの中は数えない）。
 // markdown-it を読めないとき（npm ci の前）は警告を出し、コードブロックを除いた行で数える。CI（環境変数 CI）では失敗にする。
-import { htmlDangers, pathContext, svgDangers } from "./dangers.mjs";
+import { directiveDangers, htmlDangers, pathContext, svgDangers } from "./dangers.mjs";
 import { dropFences, fenceLines, maskCode, splitSlides } from "./split.mjs";
-import { bannedMessage, blank, findBanned, readText, width } from "./text.mjs";
+import { bannedMessage, blank, findBanned, readText, stripBom, width } from "./text.mjs";
 
 import { md, parser } from "./markdown.mjs";
 
@@ -172,5 +172,16 @@ export function lintFile(path, conf) {
   }
   scan = scan.replace(/<svg\b[\s\S]*?<\/svg>/gi, blank);
   for (const d of htmlDangers(scan, ctx)) out.push({ rule_id: d.rule_id, severity: d.severity, message: d.message, location: `${path}:${lineAt(raw, d.index)}` });
+  // Marp のディレクティブ（front matter と HTML コメント）: style の @import、backgroundImage の外部・file: の url() など.
+  // HTML コメントは本文の検査では見ないので、ここで見る（コードフェンスの中のコメントは動かないので見ない）
+  const norm = stripBom(raw).replace(/\r\n/g, "\n");
+  const normLines = norm.split("\n");
+  const inFence = fenceLines(normLines);
+  const fenceless = normLines.map((ln, i) => (inFence[i] ? blank(ln) : ln)).join("\n");
+  const frontOffset = front ? 4 : 0; // 先頭の "---\n" の後ろ
+  const commentsOnly = front ? blank(norm.slice(0, frontOffset + front.length)) + fenceless.slice(frontOffset + front.length) : fenceless;
+  for (const d of directiveDangers(commentsOnly, { front, frontOffset, ctx })) {
+    out.push({ rule_id: d.rule_id, severity: d.severity, message: d.message, location: `${path}:${lineAt(norm, d.index)}` });
+  }
   return out;
 }
