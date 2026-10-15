@@ -44,7 +44,7 @@ test("front matter の style の @import・外部の url() は error", () => {
     const r = lintIn(deck(front));
     assert.equal(r.code, 1, `${front}: ${JSON.stringify(r.findings)}`);
     assert.ok(directive(r).length >= 1, front);
-    assert.match(directive(r)[0].location, /slides\/a\.md:4$/, "style の行を指す");
+    assert.match(directive(r)[0].location, /slides[\\/]a\.md:4$/, "style の行を指す");
   }
 });
 
