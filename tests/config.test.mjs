@@ -41,4 +41,7 @@ test(":trusted の出力は先に lint を通す（HTML・SVG の検査で止ま
   for (const [name, cmd] of Object.entries(scripts)) {
     if (cmd.includes("--html") && !name.startsWith("check")) assert.match(cmd, /^npm run lint && /, name);
   }
+  // 第 6 回: check:overflow:trusted も、資料を HTML 有効で描画する前に lint を通す
+  assert.match(scripts["check:overflow:trusted"], /^npm run lint && /);
+  assert.match(scripts["check:trusted"], /check:overflow:trusted/);
 });

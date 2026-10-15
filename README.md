@@ -113,7 +113,9 @@ HTML の中に Markdown を書くときは前後に空行を入れます。細�
 コードフェンスは CommonMark どおり、開いたのと同じ文字（バッククォートかチルダ）で、同じ長さ以上の行で閉じます（バッククォートのフェンスの中の `~~~` では閉じない）。
 スライドの区切りは Marp と同じく、一番外側の水平線（`---`・`***`・`___`）です。段落の直後の `---` は見出し（setext。`##` と同じ）で、区切りになりません（Marp で描画した枚数とテストで突き合わせています）。
 画像の代替テキストから除くのは Marp の画像の指定（`w:200px`・`width:50%`・`h:auto`・`blur` などと、`bg` があるときの `fit`・`left:40%` など）だけです。`![hello world](…)` や `![workflow](…)` は代替テキストとして扱います。
-`:trusted` のスクリプト（`pdf:trusted`・`pptx:trusted`・`html:trusted`・`catalog`）は、出力の前に `npm run lint` を流し、error があれば止まります。
+`:trusted` のスクリプト（`pdf:trusted`・`pptx:trusted`・`html:trusted`・`catalog`・`check:overflow:trusted`）は、出力・描画の前に `npm run lint` を流し、error があれば止まります。
+`scripts/check-overflow.mjs` を直接動かしたときも、`--build-trusted` の資料に lint を流し、error があれば描画せずに終了コード 2 で止まります。
+Marp のディレクティブ（front matter と `<!-- … -->` の中）も検査します。`style`・`backgroundImage`・`_backgroundImage`・`backgroundColor` など値が CSS になるものの `@import`、外部（`https:`・`file:` など）や資料のフォルダの外を読む `url()` は error（`directive.external_ref`）です。HTML コメントの `header`・`footer` の HTML・画像は本文と同じ規則で検査します。
 `watch:trusted` は保存のたびに lint を流し、error が無いときだけ `slides/` をプレビュー用のフォルダ（`.preview-trusted/`。Git に入れない）に写して Marp のサーバーで表示します。error の間はそのフォルダを空にするので、error のある資料は HTML 有効のプレビューに出ません。
 「資料のフォルダの外」は、作業フォルダ（リポジトリ）の中の資料ならリポジトリの外、作業フォルダの外の資料ならその資料のフォルダの外です。
 レイアウトのクラスは Marp と同じく、front matter の `class:` を全スライドの既定にし、`<!-- class: x -->` はそのスライドから後ろに引き継ぎ、`<!-- _class: x -->` はそのスライドだけに効くものとして読みます（見出し不要のレイアウトの判定に使う）。
@@ -157,6 +159,7 @@ CI は Linux（PDF / PPTX まで出力）と Windows（`npm ci`・静的チェ�
 | 2026-10 | スライドの区切りを Marp と同じにした（段落の直後の `---` は区切りではない） | 枚数・行番号の表示が Marp の出力と合うようになる。区切りたいところは `---` の前に空行を入れる |
 | 2026-10 | `watch:trusted` が起動時だけでなく保存のたびに lint し、error の間は HTML 有効のプレビューに出さない。参照形式の画像・`image-set()`・資料のフォルダの外を指すローカルのパスを error にする。front matter と `<!-- class: -->` のクラスの引き継ぎを読む | 該当する画像・CSS をリポジトリの中の相対パスにする |
 | 2026-10 | `npm run check:overflow` を `npm run pdf` と同じ扱い（HTML 無効）で測る。測定用の `build/check` を残さない | `:trusted` で出力する資料は `npm run check:trusted` で測る |
+| 2026-10 | Marp のディレクティブ（front matter・HTML コメントの `style`・`backgroundImage`・`_backgroundImage`・`header`・`footer` など）の `@import`・外部や `file:` の `url()` を error にする。`check:overflow:trusted`（と `--build-trusted`）も描画の前に lint を通す | 該当する背景画像・CSS をリポジトリの中の相対パスにする |
 
 ## セキュリティ・ライセンス
 
