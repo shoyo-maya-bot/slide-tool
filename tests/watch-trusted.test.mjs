@@ -132,3 +132,18 @@ test("digest: 中身が変われば変わり、無いフォルダは空として
   writeFileSync(join(src, "a.md"), BAD);
   assert.notEqual(digest([src]), a);
 });
+
+test("digest: copy を渡すと、指紋を取ったのと同じ中身を写す（サブフォルダも. 無い from は空）", () => {
+  const { dir, src } = deck();
+  mkdirSync(join(src, "sub"), { recursive: true });
+  writeFileSync(join(src, "a.md"), GOOD);
+  writeFileSync(join(src, "sub", "b.md"), BAD);
+  const to = join(dir, "staging");
+  const h = digest([src], { copy: { from: src, to } });
+  assert.equal(h, digest([src]));
+  assert.equal(readFileSync(join(to, "a.md"), "utf8"), GOOD);
+  assert.equal(readFileSync(join(to, "sub", "b.md"), "utf8"), BAD);
+  const none = join(dir, "none");
+  assert.equal(digest([none], { copy: { from: none, to: join(dir, "x") } }), digest([]));
+  assert.ok(!existsSync(join(dir, "x")));
+});

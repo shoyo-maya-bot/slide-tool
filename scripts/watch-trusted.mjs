@@ -11,7 +11,7 @@
 // .preview-trusted/ は slides/ と同じ深さに置くので、資料の中の ../assets/… などの相対パスはそのまま読める.
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, watch } from "node:fs";
+import { closeSync, cpSync, fstatSync, mkdirSync, openSync, readFileSync, readdirSync, rmSync, watch, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -27,20 +27,48 @@ function clearDir(dir) {
   for (const n of readdirSync(dir)) rmSync(join(dir, n), { recursive: true, force: true });
 }
 
-/** フォルダ（またはファイル）の中身の指紋. 無いものは空として扱う */
-export function digest(paths) {
+/**
+ * フォルダ（またはファイル）の中身の指紋. 無いものは空として扱う.
+ * copy（{ from, to }）を渡すと、from の下のファイルを to に写す. 指紋と写す中身は、ファイルを 1 回開いたハンドルから
+ * 読んだ同じバイト列から作る（存在の確認や stat をしてから読み直す形にしない. 確認と読み込みの間の書き換えで、
+ * 指紋と写した中身が食い違わないように）
+ */
+export function digest(paths, { copy = null } = {}) {
   const h = createHash("sha256");
-  const walk = (p) => {
-    if (!existsSync(p)) return;
-    if (statSync(p).isDirectory()) {
-      for (const n of readdirSync(p).sort()) walk(join(p, n));
+  const walk = (p, to) => {
+    let fd;
+    try {
+      fd = openSync(p, "r");
+    } catch (e) {
+      if (e.code === "ENOENT") return; // 無いもの（消された直後など）は空
+      if (e.code !== "EISDIR" && e.code !== "EPERM" && e.code !== "EACCES") throw e; // Windows はフォルダを開けない
+    }
+    let data = null;
+    if (fd !== undefined) {
+      try {
+        if (!fstatSync(fd).isDirectory()) data = readFileSync(fd);
+      } finally {
+        closeSync(fd);
+      }
+    }
+    if (data === null) {
+      let names;
+      try {
+        names = readdirSync(p);
+      } catch (e) {
+        if (e.code === "ENOENT") return;
+        throw e;
+      }
+      if (to) mkdirSync(to, { recursive: true });
+      for (const n of names.sort()) walk(join(p, n), to && join(to, n));
       return;
     }
     h.update(`${p}\0`);
-    h.update(readFileSync(p));
+    h.update(data);
     h.update("\0");
+    if (to) writeFileSync(to, data);
   };
-  for (const p of paths) walk(p);
+  for (const p of paths) walk(p, copy && resolve(p) === resolve(copy.from) ? copy.to : null);
   return h.digest("hex");
 }
 
@@ -62,10 +90,10 @@ export function syncPreview({
   const staging = `${dest}.staging`;
   try {
     for (let i = 0; i < retries; i++) {
-      const before = digest(watched);
       rmSync(staging, { recursive: true, force: true });
-      if (existsSync(src)) cpSync(src, staging, { recursive: true });
-      else mkdirSync(staging, { recursive: true });
+      mkdirSync(staging, { recursive: true });
+      // 指紋を取りながら、同じ読み込みの中身で src を一時フォルダに写す
+      const before = digest(watched, { copy: { from: src, to: staging } });
       const code = runLint();
       if (digest(watched) !== before) continue; // lint の間に保存された: lint した中身と写した中身が違うかもしれない
       clearDir(dest);
@@ -101,7 +129,15 @@ function run() {
     shell: process.platform === "win32",
   });
   const resync = debounce(() => syncPreview(), 300);
-  const watchers = LINT_TARGETS.filter((d) => existsSync(d)).map((d) => watch(d, { recursive: true }, resync));
+  // 無いフォルダは見ない（存在を確かめてから watch せず、watch の失敗で判断する）
+  const watchers = LINT_TARGETS.flatMap((d) => {
+    try {
+      return [watch(d, { recursive: true }, resync)];
+    } catch (e) {
+      if (e.code === "ENOENT") return [];
+      throw e;
+    }
+  });
   const stop = () => {
     for (const w of watchers) w.close();
     marp.kill();
