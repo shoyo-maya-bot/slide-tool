@@ -1,5 +1,5 @@
 // Marp と同じ markdown-it（package-lock.json で固定）を読み込む. 読めないとき（npm ci の前）は null
-let MarkdownIt = null;
+let MarkdownIt;
 try {
   ({ default: MarkdownIt } = await import("markdown-it"));
 } catch {

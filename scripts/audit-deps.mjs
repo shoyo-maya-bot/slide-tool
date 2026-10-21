@@ -14,7 +14,7 @@ export const THRESHOLD = "high";
 /** 許可リストを読む. → [{ id, package, reason, until }]（id は GHSA-…） */
 export function loadAllowlist(path) {
   if (!existsSync(path)) return [];
-  const raw = readFileSync(path, "utf8").replace(/^﻿/, "");
+  const raw = readFileSync(path, "utf8").replace(/^\uFEFF/, "");
   const list = JSON.parse(raw).advisories ?? [];
   for (const a of list) {
     if (!/^GHSA-[\w-]+$/.test(a.id ?? "") || !a.reason || !/^\d{4}-\d{2}-\d{2}$/.test(a.until ?? "")) {
@@ -85,7 +85,8 @@ export function main(argv) {
   const today = new Date().toISOString().slice(0, 10);
   const { blocking, allowed, expired } = evaluate(report, allowlist, today);
   for (const a of allowed) console.log(`許可（${a.until} まで）: ${a.package} ${a.id} ${a.severity} — ${a.reason}`);
-  for (const a of expired) console.error(`許可の期限切れ（${a.until}）: ${a.package} ${a.id} ${a.severity} ${a.url} — 直っているか確かめ、許可リストを見直してください`);
+  for (const a of expired)
+    console.error(`許可の期限切れ（${a.until}）: ${a.package} ${a.id} ${a.severity} ${a.url} — 直っているか確かめ、許可リストを見直してください`);
   for (const b of blocking) console.error(`脆弱性（${b.severity}）: ${b.package} ${b.id} ${b.title} ${b.url}`);
   const bad = blocking.length + expired.length;
   console.log(`\n${THRESHOLD} 以上: 要対応 ${bad} 件 / 許可中 ${allowed.length} 件`);

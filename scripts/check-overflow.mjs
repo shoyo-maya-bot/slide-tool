@@ -6,6 +6,7 @@
 //     --build-trusted は npm run pdf:trusted と同じ扱い（--html --allow-local-files）で作って、同じ読み込み方で測る.
 //   node scripts/check-overflow.mjs <作った HTML のフォルダかファイル> [--format json]（従来どおり。trusted の扱いで測る）
 // 検出: スライドの外にはみ出した要素 / 内容がスライドより高い / 要素の中で文字が溢れている（scroll > client）
+//   本文は余白（padding）の内側、ヘッダー・フッター（header・footer）はスライドの端を超えたらはみ出し
 // --build-trusted の資料は、変換の前に lint（npm run lint と同じ規則）を流し、error があれば変換せずに終了コード 2 で止める
 // （HTML とローカルのファイルを有効にして描画するため. npm run check:overflow:trusted も先に npm run lint を流す）.
 // 終了コード: 0 問題なし / 1 はみ出しあり / 2 引数の誤り・資料を変換できない・trusted の資料に lint の error / 3 ブラウザを起動できない・同梱フォントを 1 つも読み込めない
@@ -33,10 +34,13 @@ export function inspectPage() {
     const outside = [];
     const issues = [];
     for (const el of sec.querySelectorAll("*")) {
-      if (el.closest("header, footer")) continue;
       const r = el.getBoundingClientRect();
       if (!r.width || !r.height) continue;
-      if (r.bottom > limitB || r.right > limitR) outside.push({ el, by: Math.round(Math.max(r.bottom - limitB, r.right - limitR) + TOL) });
+      if (el.closest("header, footer")) {
+        // ヘッダー・フッターは余白（padding）の中に置くものなので、余白ではなくスライドの端と比べる（上下左右）
+        const by = Math.max(r.bottom - box.bottom, r.right - box.right, box.top - r.top, box.left - r.left);
+        if (by > TOL) outside.push({ el, by: Math.round(by) });
+      } else if (r.bottom > limitB || r.right > limitR) outside.push({ el, by: Math.round(Math.max(r.bottom - limitB, r.right - limitR) + TOL) });
       const ov = getComputedStyle(el).overflow;
       if (["hidden", "clip", "auto", "scroll"].includes(ov) && (el.scrollHeight > el.clientHeight + TOL || el.scrollWidth > el.clientWidth + TOL)) {
         issues.push({ kind: "clipped", ...describe(el), by: Math.max(el.scrollHeight - el.clientHeight, el.scrollWidth - el.clientWidth) });
@@ -74,7 +78,12 @@ export function inspectFonts() {
       // 読めないスタイルシート（別オリジン）は飛ばす
     }
   }
-  const norm = (s) => String(s || "").replace(/["']/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+  const norm = (s) =>
+    String(s || "")
+      .replace(/["']/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
   const srcOf = (f) => {
     const r = rules.find(
       (st) =>
@@ -95,8 +104,15 @@ export function inspectFonts() {
 /** 読めなかったフォントを 1 行ずつの説明にする（同じファイルの重複はまとめる） */
 export function describeFailedFonts(failed) {
   const lines = failed.map((f) => {
-    const range = f.unicodeRange && f.unicodeRange !== "U+0-10FFFF" ? ` unicode-range ${f.unicodeRange.length > 40 ? f.unicodeRange.slice(0, 40) + "…" : f.unicodeRange}` : "";
-    const name = f.src ? decodeURIComponent(f.src.replace(/^file:\/\//, "")).split(/[\\/]/).pop() : "";
+    const range =
+      f.unicodeRange && f.unicodeRange !== "U+0-10FFFF"
+        ? ` unicode-range ${f.unicodeRange.length > 40 ? f.unicodeRange.slice(0, 40) + "…" : f.unicodeRange}`
+        : "";
+    const name = f.src
+      ? decodeURIComponent(f.src.replace(/^file:\/\//, ""))
+          .split(/[\\/]/)
+          .pop()
+      : "";
     return `${f.family} ${f.weight} ${f.style}${range}${name ? `（${name}）` : ""}`;
   });
   return [...new Set(lines)];
@@ -207,7 +223,9 @@ export async function lintTrusted(sources, runLint) {
   if (!paths.length) return;
   if (!runLint) runLint = (await import("./lint/cli.mjs")).main;
   if (runLint(paths) !== 0) {
-    throw Object.assign(new Error(`lint で error があるため、HTML とローカルのファイルを有効にした描画（--build-trusted）をしません: ${paths.join(", ")}`), { exitCode: 2 });
+    throw Object.assign(new Error(`lint で error があるため、HTML とローカルのファイルを有効にした描画（--build-trusted）をしません: ${paths.join(", ")}`), {
+      exitCode: 2,
+    });
   }
 }
 
@@ -242,7 +260,9 @@ export function summarize(report, format, { log = console.log, warn = console.er
     const failed = r.fonts.failed || [];
     if (!failed.length) continue;
     if (!r.trusted) {
-      warn(`注意: ${r.file} は既定の扱い（npm run pdf と同じ）で測ったので、同梱フォントを読まず PC のフォントで測っています。:trusted で出力する資料は npm run check:trusted で測ってください`);
+      warn(
+        `注意: ${r.file} は既定の扱い（npm run pdf と同じ）で測ったので、同梱フォントを読まず PC のフォントで測っています。:trusted で出力する資料は npm run check:trusted で測ってください`,
+      );
       continue;
     }
     // 一部だけ読めない: 読めた分で測れているので続ける. どのフォントかを出す
@@ -301,8 +321,11 @@ async function main(argv) {
 }
 
 if (process.argv[1]?.endsWith("check-overflow.mjs")) {
-  main(process.argv.slice(2)).then((c) => (process.exitCode = c), (e) => {
-    console.error(e);
-    process.exitCode = 3;
-  });
+  main(process.argv.slice(2)).then(
+    (c) => (process.exitCode = c),
+    (e) => {
+      console.error(e);
+      process.exitCode = 3;
+    },
+  );
 }

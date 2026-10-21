@@ -11,7 +11,11 @@ import { md, parser } from "./markdown.mjs";
 export { parser };
 
 /** YAML の値の前後の引用符を外す */
-const unquote = (v) => v.trim().replace(/^(['"])(.*)\1$/, "$2").trim();
+const unquote = (v) =>
+  v
+    .trim()
+    .replace(/^(['"])(.*)\1$/, "$2")
+    .trim();
 
 /**
  * スライドの中の HTML コメントの class の指定. → { local, spot }（無ければ null）
@@ -113,9 +117,7 @@ const BG_KEYWORDS = [/^bg$/, /^(auto|contain|cover|fit)$/, /^(left|right)(:(\d*\
 export function altWithoutMarpKeywords(alt) {
   const words = alt.split(/\s+/).filter(Boolean);
   const bg = words.includes("bg");
-  return words
-    .filter((w) => !IMAGE_KEYWORDS.some((re) => re.test(w)) && !(bg && BG_KEYWORDS.some((re) => re.test(w))))
-    .join(" ");
+  return words.filter((w) => !IMAGE_KEYWORDS.some((re) => re.test(w)) && !(bg && BG_KEYWORDS.some((re) => re.test(w)))).join(" ");
 }
 
 export function lintSlide(slide, index, conf, file) {
@@ -129,7 +131,8 @@ export function lintSlide(slide, index, conf, file) {
   if (conf.layouts.length && unknown.length) add("warning", "slide.unknown_layout", `定義に無いレイアウト: ${unknown.join(", ")}（docs/layouts.md）`);
 
   const st = structure(text);
-  if (st.title === null && !conf.noTitleLayouts.includes(layout) && text.trim()) add("error", "slide.no_title", "見出し（# タイトル）がありません。1 枚に 1 つのメッセージを見出しで書きます");
+  if (st.title === null && !conf.noTitleLayouts.includes(layout) && text.trim())
+    add("error", "slide.no_title", "見出し（# タイトル）がありません。1 枚に 1 つのメッセージを見出しで書きます");
   const titleWidth = st.title === null ? 0 : width(titleText(st.title));
   if (titleWidth > conf.maxTitleChars) {
     add("warning", "slide.title_long", `タイトルが長い（全角 ${titleWidth} 字 > ${conf.maxTitleChars}）。2 行になると下の要素が押し出されます`);
@@ -158,8 +161,10 @@ export function lintFile(path, conf) {
   for (const f of findBanned(raw, conf.bannedTerms)) {
     out.push({ rule_id: "slide.banned_term", severity: "error", message: bannedMessage(f.term), location: `${path}:${f.line}` });
   }
-  if (!/^marp:\s*true\s*$/m.test(front)) out.push({ rule_id: "deck.not_marp", severity: "error", message: "front matter に marp: true がありません", location: `${path}:1` });
-  if (!/^theme:\s*\S+/m.test(front)) out.push({ rule_id: "deck.no_theme", severity: "warning", message: "front matter に theme がありません（standard を推奨）", location: `${path}:1` });
+  if (!/^marp:\s*true\s*$/m.test(front))
+    out.push({ rule_id: "deck.not_marp", severity: "error", message: "front matter に marp: true がありません", location: `${path}:1` });
+  if (!/^theme:\s*\S+/m.test(front))
+    out.push({ rule_id: "deck.no_theme", severity: "warning", message: "front matter に theme がありません（standard を推奨）", location: `${path}:1` });
   const classes = slideClasses(front, slides);
   slides.forEach((s, i) => out.push(...lintSlide({ ...s, className: classes[i] }, i, conf, path)));
   // :trusted（HTML 有効）で出力すると、資料の中に直接書いた HTML・SVG も動くので、スクリプトを動かせる記述を探す.
@@ -171,7 +176,8 @@ export function lintFile(path, conf) {
     for (const d of svgDangers(m[0], ctx)) out.push({ ...d, location: `${path}:${lineAt(raw, m.index)}` });
   }
   scan = scan.replace(/<svg\b[\s\S]*?<\/svg>/gi, blank);
-  for (const d of htmlDangers(scan, ctx)) out.push({ rule_id: d.rule_id, severity: d.severity, message: d.message, location: `${path}:${lineAt(raw, d.index)}` });
+  for (const d of htmlDangers(scan, ctx))
+    out.push({ rule_id: d.rule_id, severity: d.severity, message: d.message, location: `${path}:${lineAt(raw, d.index)}` });
   // Marp のディレクティブ（front matter と HTML コメント）: style の @import、backgroundImage の外部・file: の url() など.
   // HTML コメントは本文の検査では見ないので、ここで見る（コードフェンスの中のコメントは動かないので見ない）
   const norm = stripBom(raw).replace(/\r\n/g, "\n");

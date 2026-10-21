@@ -21,12 +21,14 @@ const noTitle = (f) => f.filter((x) => x.rule_id === "slide.no_title");
 test("front matter の class: section は全スライドに効き、見出しが無くても slide.no_title にしない", () => {
   const f = lintDeck("---\nmarp: true\ntheme: standard\nclass: section\n---\n\n第 1 章\n\n---\n\n第 2 章\n");
   assert.deepEqual(noTitle(f), [], JSON.stringify(f));
-  const quoted = lintDeck("---\nmarp: true\ntheme: standard\nclass: \"section\"\n---\n\n第 1 章\n");
+  const quoted = lintDeck('---\nmarp: true\ntheme: standard\nclass: "section"\n---\n\n第 1 章\n');
   assert.deepEqual(noTitle(quoted), []);
 });
 
 test("<!-- class: section --> は後ろのスライドに引き継ぐ", () => {
-  const f = lintDeck("---\nmarp: true\ntheme: standard\n---\n\n<!-- class: section -->\n\n第 1 章\n\n---\n\n第 2 章\n\n---\n\n<!-- class: agenda -->\n\n本文だけ\n");
+  const f = lintDeck(
+    "---\nmarp: true\ntheme: standard\n---\n\n<!-- class: section -->\n\n第 1 章\n\n---\n\n第 2 章\n\n---\n\n<!-- class: agenda -->\n\n本文だけ\n",
+  );
   const nt = noTitle(f);
   assert.equal(nt.length, 1, JSON.stringify(f));
   assert.match(nt[0].location, /\(3 枚目\)/);

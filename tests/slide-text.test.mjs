@@ -9,13 +9,29 @@ import { altWithoutMarpKeywords } from "../scripts/lint/slide.mjs";
 const noAlt = (md) => lintSlide({ line: 1, text: `# 図\n\n${md}\n` }, 0, DEFAULTS, "a.md").some((f) => f.rule_id === "slide.image_no_alt");
 
 test("普通の語は Marp の指定と取り違えない（hello world・workflow・height の比較）", () => {
-  for (const md of ["![hello world](a.png)", "![workflow](a.png)", "![height の比較](a.png)", "![Bandwidth](a.png)", "![fit](a.png)", "![left right](a.png)", "![coverage](a.png)"]) {
+  for (const md of [
+    "![hello world](a.png)",
+    "![workflow](a.png)",
+    "![height の比較](a.png)",
+    "![Bandwidth](a.png)",
+    "![fit](a.png)",
+    "![left right](a.png)",
+    "![coverage](a.png)",
+  ]) {
     assert.ok(!noAlt(md), md);
   }
 });
 
 test("Marp の指定だけなら代替テキストが無い", () => {
-  for (const md of ["![w:200px](a.png)", "![width:50% h:auto](a.png)", "![bg fit left:40%](a.png)", "![bg contain](a.png)", "![sepia:1 blur](a.png)", "![50%](a.png)", "![](a.png)"]) {
+  for (const md of [
+    "![w:200px](a.png)",
+    "![width:50% h:auto](a.png)",
+    "![bg fit left:40%](a.png)",
+    "![bg contain](a.png)",
+    "![sepia:1 blur](a.png)",
+    "![50%](a.png)",
+    "![](a.png)",
+  ]) {
     assert.ok(noAlt(md), md);
   }
 });

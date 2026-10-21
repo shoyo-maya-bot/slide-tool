@@ -8,4 +8,4 @@ Marp（Markdown）でスライドを作るリポジトリです。説明は日�
 - テーマ（themes/standard.css）は全スライドに影響する。変えるときは理由を説明し、`npm run check:trusted` で全スライドを確かめる
 - `:trusted` のスクリプト（HTML とローカルのファイルを有効にする）は、このリポジトリと利用者自身が作った資料にだけ使う。人からもらった資料には使わない
 - 社名・顧客名・システム名・個人名・推測の数字を書かない
-- 変更したら `npm run lint` と `npm test` を実行して結果を報告する
+- 変更したら `npm run lint`・`npm run lint:js`・`npm run format:check`・`npm test` を実行して結果を報告する

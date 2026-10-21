@@ -39,7 +39,7 @@ test("front matter の style の @import・外部の url() は error", () => {
     'style: "@import url(https://evil.example/x.css);"\n',
     "style: |\n  @import 'https://evil.example/x.css';\n  section { color: red; }\n",
     "style: >\n  section { background: url(https://evil.example/x.png) }\n",
-    "style: \"section { background: \\x75rl(https://evil.example/x.png) }\"\n",
+    'style: "section { background: \\x75rl(https://evil.example/x.png) }"\n',
   ]) {
     const r = lintIn(deck(front));
     assert.equal(r.code, 1, `${front}: ${JSON.stringify(r.findings)}`);
@@ -55,7 +55,7 @@ test("front matter・HTML コメントの backgroundImage の外部・file:・�
     ["", "<!-- _backgroundImage: \"url('file:///etc/passwd')\" -->"],
     ["", "<!--\npaginate: true\n_backgroundImage: url(../../../etc/x.png)\n-->"],
     ["", "<!-- _style: \"@import 'https://evil.example/x.css'\" -->"],
-    ["", "<!-- _backgroundColor: \"url(https://evil.example/x.png)\" -->"],
+    ["", '<!-- _backgroundColor: "url(https://evil.example/x.png)" -->'],
   ]) {
     const r = lintIn(deck(front, body));
     assert.equal(r.code, 1, `${front}${body}: ${JSON.stringify(r.findings)}`);
@@ -75,7 +75,7 @@ test("リポジトリの中の背景画像・色の指定、コードフェン�
   const r = lintIn(
     deck(
       "backgroundColor: '#fff'\nstyle: |\n  section { background: url(../assets/bg.png) }\n",
-      "<!-- _backgroundImage: url(../assets/bg.png) -->\n<!-- _class: lead -->\n\n```\n<!-- style: \"@import url(https://x)\" -->\n```",
+      '<!-- _backgroundImage: url(../assets/bg.png) -->\n<!-- _class: lead -->\n\n```\n<!-- style: "@import url(https://x)" -->\n```',
     ),
   );
   assert.equal(r.code, 0, JSON.stringify(r.findings));
@@ -99,10 +99,16 @@ test("--build-trusted の資料は lint で error があれば描画しない（
   assert.equal(calls.length, 0, "trusted でない資料だけなら lint しない");
   await lintTrusted([{ path: "a.md", trusted: true }], () => 0);
   await assert.rejects(
-    lintTrusted([{ path: "slides", trusted: false }, { path: "bad.md", trusted: true }], (p) => {
-      assert.deepEqual(p, ["bad.md"]);
-      return 1;
-    }),
+    lintTrusted(
+      [
+        { path: "slides", trusted: false },
+        { path: "bad.md", trusted: true },
+      ],
+      (p) => {
+        assert.deepEqual(p, ["bad.md"]);
+        return 1;
+      },
+    ),
     (e) => e.exitCode === 2,
   );
 });
