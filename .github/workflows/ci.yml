@@ -11,6 +11,7 @@ permissions:
 jobs:
   slides:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -25,6 +26,11 @@ jobs:
         run: npm run audit
       - name: bundled font and its license are installed
         run: test -f node_modules/@fontsource/noto-sans-jp/400.css && test -f node_modules/@fontsource/noto-sans-jp/LICENSE
+      # スクリプトの静的検査（ESLint の recommended。warning も失敗: --max-warnings 0）と書式（Prettier）
+      - name: ESLint (scripts and tests)
+        run: npm run lint:js
+      - name: Prettier (scripts and tests)
+        run: npm run format:check
       - run: npx playwright install chromium
       - name: unit tests
         run: npm test

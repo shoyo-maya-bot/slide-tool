@@ -41,7 +41,7 @@ test("参照形式の画像（![図][logo] + [logo]: https://…）は外部の�
     "![図][logo]\n\n[logo]: https://example.com/logo.png",
     "![図][]\n\n[図]: https://example.com/logo.png",
     "![logo]\n\n[logo]: <//example.com/logo.png>",
-    "![図][LOGO]\n\n[logo]:\n  https://example.com/logo.png \"題\"",
+    '![図][LOGO]\n\n[logo]:\n  https://example.com/logo.png "題"',
   ]) {
     const r = lintIn(deck(body));
     assert.equal(r.code, 1, body);
@@ -51,7 +51,12 @@ test("参照形式の画像（![図][logo] + [logo]: https://…）は外部の�
 });
 
 test("リンク（参照形式を含む）と、リポジトリの中の画像は通る", () => {
-  for (const body of ["[資料][doc]\n\n[doc]: https://example.com/", "![図][logo]\n\n[logo]: ../assets/logo.png", "![図](../assets/logo.png)", "`![図][x]`\n\n    [x]: https://example.com/a.png"]) {
+  for (const body of [
+    "[資料][doc]\n\n[doc]: https://example.com/",
+    "![図][logo]\n\n[logo]: ../assets/logo.png",
+    "![図](../assets/logo.png)",
+    "`![図][x]`\n\n    [x]: https://example.com/a.png",
+  ]) {
     const r = lintIn(deck(body));
     assert.equal(r.code, 0, `${body}: ${JSON.stringify(r.findings)}`);
   }
@@ -83,7 +88,8 @@ test("CSS の image-set()・-webkit-image-set() の外部の URL は error", () 
 
 test("isOutsidePath: 絶対パスと、起点から root の外に出る相対パス", () => {
   const ctx = { baseDir: "/r/slides", root: "/r" };
-  for (const v of ["/etc/passwd", "\\etc\\passwd", "../../etc/passwd", "../../../x.png", "%2e%2e/%2e%2e/x.png", "..\\..\\x.png", "&#46;&#46;/../x.png"]) assert.ok(isOutsidePath(v, ctx), v);
+  for (const v of ["/etc/passwd", "\\etc\\passwd", "../../etc/passwd", "../../../x.png", "%2e%2e/%2e%2e/x.png", "..\\..\\x.png", "&#46;&#46;/../x.png"])
+    assert.ok(isOutsidePath(v, ctx), v);
   for (const v of ["../assets/a.png", "a.png", "./b/c.png", "#id", "https://example.com/a.png", "//a/b", "data:image/png;base64,AA", "", "a.png?x=../../.."]) {
     assert.ok(!isOutsidePath(v, ctx), v);
   }
@@ -106,7 +112,10 @@ test("資料のフォルダの外を指すローカルのパス（画像・img�
     const r = lintIn(deck(body));
     assert.equal(r.code, 1, `${body}: ${JSON.stringify(r.findings)}`);
     assert.ok(external(r).length >= 1, body);
-    assert.ok(external(r).some((f) => /フォルダの外/.test(f.message)), body);
+    assert.ok(
+      external(r).some((f) => /フォルダの外/.test(f.message)),
+      body,
+    );
   }
 });
 
@@ -117,4 +126,30 @@ test("SVG ファイルの中の、フォルダの外を指す参照は error", (
   assert.ok(external(r).some((f) => /フォルダの外/.test(f.message)));
   const ok = lintIn({ "assets/svg/a.svg": svg.replace("../../../etc/x.png", "../logo.png") }, ["assets"]);
   assert.equal(ok.code, 0, JSON.stringify(ok.findings));
+});
+
+// --- 第 7 回: 閉じ括弧の無い url( ---
+
+test("閉じ括弧・閉じ引用符の無い url( も外部の読み込みとして見る（Chromium は入力の終わりで閉じたものとして読む）", () => {
+  for (const css of [
+    "background:url(https://evil.example/x.png",
+    'background:url("https://evil.example/x.png',
+    "background:url('//evil.example/x.png",
+    "background:url( https://evil.example/x.png ",
+    "background:url(/etc/passwd",
+  ]) {
+    assert.ok(cssDangers(css).length, css);
+  }
+  for (const css of ["background:url(img/a.png", "background:url(data:image/png;base64,AAAA", "color:red"]) {
+    assert.deepEqual(cssDangers(css), [], css);
+  }
+  const r = lintIn(deck('<div style="background:url(https://evil.example/x.png">x</div>'));
+  assert.ok(external(r).length, JSON.stringify(r.findings));
+  const d = lintIn({
+    "slides/a.md": `${deckHead}<!-- _backgroundImage: url(https://evil.example/x.png -->\n\n# 図\n`,
+  });
+  assert.ok(
+    d.findings.some((f) => f.rule_id === "directive.external_ref"),
+    JSON.stringify(d.findings),
+  );
 });

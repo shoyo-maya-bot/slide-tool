@@ -56,10 +56,17 @@ test("一覧に無い要素（iframe・object・embed・meta・link・base・for
 });
 
 test("一覧に無い属性は error（srcset・formaction・http-equiv など）", () => {
-  for (const html of ['<img src="a.png" alt="図" srcset="https://example.com/a.png 2x">', '<div formaction="x">本文</div>', '<a href="#x" ping="https://example.com/">x</a>']) {
+  for (const html of [
+    '<img src="a.png" alt="図" srcset="https://example.com/a.png 2x">',
+    '<div formaction="x">本文</div>',
+    '<a href="#x" ping="https://example.com/">x</a>',
+  ]) {
     const r = lintDeck(html);
     assert.equal(r.code, 1, html);
-    assert.ok(r.findings.some((x) => x.rule_id === "html.disallowed_attribute"), `${html}: ${JSON.stringify(r.findings)}`);
+    assert.ok(
+      r.findings.some((x) => x.rule_id === "html.disallowed_attribute"),
+      `${html}: ${JSON.stringify(r.findings)}`,
+    );
   }
 });
 
@@ -79,7 +86,10 @@ test("外部の読み込みは error: <img src=http…>・![](https://…)・<st
   for (const html of cases) {
     const r = lintDeck(html);
     assert.equal(r.code, 1, `${html}: ${JSON.stringify(r.findings)}`);
-    assert.ok(r.findings.some((x) => x.rule_id === "html.external_resource" && x.severity === "error"), `${html}: ${JSON.stringify(r.findings)}`);
+    assert.ok(
+      r.findings.some((x) => x.rule_id === "html.external_resource" && x.severity === "error"),
+      `${html}: ${JSON.stringify(r.findings)}`,
+    );
   }
 });
 
@@ -107,7 +117,7 @@ test("一覧にある要素・属性と、リポジトリの中のものを読�
 });
 
 test("コードの中の例は見ない（<iframe> をコードで説明する）", () => {
-  const r = lintDeck("`<iframe>` は使えません\n\n```html\n<iframe src=\"https://example.com/\"></iframe>\n<style>@import url(x.css)</style>\n```\n");
+  const r = lintDeck('`<iframe>` は使えません\n\n```html\n<iframe src="https://example.com/"></iframe>\n<style>@import url(x.css)</style>\n```\n');
   assert.equal(r.code, 0, JSON.stringify(r.findings));
 });
 
@@ -125,7 +135,10 @@ test("SVG: 一覧に無い要素（animate・set・iframe など）・外部の 
     const p = join(dir, name);
     writeFileSync(p, body);
     const f = lintSvg(p);
-    assert.ok(f.some((x) => x.rule_id === rule && x.severity === "error"), `${name}: ${JSON.stringify(f)}`);
+    assert.ok(
+      f.some((x) => x.rule_id === rule && x.severity === "error"),
+      `${name}: ${JSON.stringify(f)}`,
+    );
   }
   // 同梱の図で使う要素・ページ内の参照（url(#grad)・href="#a"）は通す
   const ok = join(dir, "ok.svg");
@@ -142,6 +155,6 @@ test("isExternalUrl・cssDangers", () => {
   for (const u of ["a.png", "../a.png", "/abs/a.png", "#id", "data:image/png;base64,AA", "", "javascript:x"]) assert.ok(!isExternalUrl(u), u);
   assert.deepEqual(cssDangers("h1 { color: red } section { background: url('a.png') }"), []);
   assert.equal(cssDangers("/* x */ @IMPORT 'a.css';").length, 1);
-  assert.equal(cssDangers("a { background: url( \"https://x/y.png\" ) }").length, 1);
+  assert.equal(cssDangers('a { background: url( "https://x/y.png" ) }').length, 1);
   assert.equal(cssDangers("a { width: expression(alert(1)) }").length, 1);
 });

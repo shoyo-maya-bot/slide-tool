@@ -31,7 +31,7 @@ npm run watch:trusted   # 編集しながらブラウザでプレビュー（保
 
 | スクリプト | HTML・ローカルのファイル | 使う資料 |
 |---|---|---|
-| `npm run pdf` / `pptx` / `html` / `watch` / `check` | 無効（HTML は文字として出る。同梱フォントや画像は読まない） | 人からもらった資料・中身を確かめていない資料 |
+| `npm run pdf` / `pptx` / `html` / `watch` / `check` | 無効（HTML は文字として出る。同梱フォントや画像は読まない）。`check` は同梱のレイアウト集（`layouts/catalog.md`）だけ有効にして測る | 人からもらった資料・中身を確かめていない資料 |
 | `npm run pdf:trusted` / `pptx:trusted` / `html:trusted` / `watch:trusted` / `check:trusted` | 有効（`--html --allow-local-files`） | 自分（とチーム）で作った資料。`slides/` のサンプル |
 | `npm run catalog` | 有効 | リポジトリ同梱のレイアウト集 |
 
@@ -47,8 +47,8 @@ VS Code では拡張機能「Marp for VS Code」でプレビューできます�
 `npm run check:overflow` の結果がどの PC でもそろいます。同梱フォントを 1 つも読み込めなかったときは、はみ出しチェックを失敗（終了コード 3）にします。
 一部だけ読み込めなかったときは、どのフォント（太さ・文字の範囲・ファイル名）かを警告に出して続けます。
 
-はみ出しチェックは、本番の出力と同じ扱いで測ります。`npm run check:overflow` は `npm run pdf` と同じく資料の HTML と
-ローカルのファイルを無効にして（同梱フォントも読まないので PC のフォントで）、`npm run check:overflow:trusted` は
+はみ出しチェックは、本番の出力と同じ扱いで測ります。`npm run check:overflow` は `npm run pdf` と同じく `slides/` の資料の HTML と
+ローカルのファイルを無効にして（同梱フォントも読まないので PC のフォントで。同梱のレイアウト集 `layouts/catalog.md` だけは有効にして）、`npm run check:overflow:trusted` は
 `npm run pdf:trusted` と同じく有効にして測ります。`:trusted` で出力する資料は `npm run check:trusted` で確かめてください。
 測定用の HTML は `build/check-XXXX` に作り、終わったら（失敗・中断でも）消します。
 
@@ -102,11 +102,11 @@ HTML の中に Markdown を書くときは前後に空行を入れます。細�
 |---|---|---|
 | error | 見出しが無い / 箇条書きが多い / 本文が多い / 禁止語 / `marp: true` が無い | 箇条書き 6 個、本文 260 字 |
 | error（禁止語） | 本文・front matter（`header:`・`footer:`）・発表者メモ・インラインの SVG・SVG ファイル・ファイル名 | 全角半角・大文字小文字をそろえて比べる（NFKC） |
-| warning | タイトルが長い / 入れ子が深い / 画像の代替テキストが無い / 定義に無いレイアウト | タイトル 全角 32 字、入れ子 2 段 |
+| warning | タイトルが長い / 入れ子が深い / 画像の代替テキストが無い / 定義に無いレイアウト / `theme:` が無い / SVG の `<title>` が無い・文字があるのに `font-family` が無い | タイトル 全角 32 字、入れ子 2 段 |
 | error（SVG） | viewBox が無い / 外部参照（`href`・`xlink:href`・`src` の `https:`・`//`、`<style>`・`style` 属性の `@import`・外部の `url()`・`image-set()`）/ 資料のフォルダの外を指すローカルのパス（`/etc/…`・`../../…`）/ script / イベント属性（`onload` など `on*`。`<svg/onload=…>` のような `/` 区切りも）/ `foreignObject` / `javascript:`・`vbscript:`・`data:`（画像以外）の URL / 許可の一覧に無い要素（`animate`・`set` など） | SVG ファイルと、資料の中に直接書いた SVG の両方 |
 | error（HTML） | 資料の中の `<script>` / どの要素でもイベント属性（`<img onerror=…>` など）/ 属性やリンク先の `javascript:`・`vbscript:`・`data:`（png・jpeg・gif・webp の画像は可） | `.md` の本文（コードフェンス・インラインのコード・HTML コメントの中は見ない） |
 | error（HTML の許可の一覧） | 使ってよい要素・属性の一覧（`scripts/lint/allowlist.mjs`）に無いもの（`<iframe>`・`<object>`・`<embed>`・`<meta>`・`<link>`・`<base>`・`<form>`・`<video>` など、`srcset` などの属性）/ 外部の読み込み（`<img src="https://…">`・`![](https://…)`・参照形式の画像 `![図][logo]` + `[logo]: https://…`・`<style>` や `style` 属性の `@import`・外部の `url()`・`image-set()`）/ 資料のフォルダの外を指すローカルのパス（`/etc/…` などの絶対パス、`../../…` でリポジトリの外に出るもの） | `.md` の本文。リンク（`[資料](https://…)`）は読み込まないので可。画像・CSS はリポジトリの中のもの（相対パス）か `data:image` を使う。Markdown の画像は Marp と同じ markdown-it のトークン（image の src）で判定する |
-| error（描画） | スライドの外にはみ出す（outside）/ 箱の中で切れる（clipped）/ 高さを超える（too_tall） | 許容 3px |
+| error（描画） | スライドの外にはみ出す（outside）/ 箱の中で切れる（clipped）/ 高さを超える（too_tall）。本文は余白（padding）の内側、ヘッダー・フッター（`header:`・`footer:`）はスライドの端を超えたら outside | 許容 3px |
 
 `bannedTerms` に社名・顧客名・システム名などを登録すると、資料に入ったときに止まります。
 見出しと箇条書きは、Marp と同じ markdown-it で数えます（コードブロックの中の `- a` や `# コメント` は数えない）。
@@ -117,10 +117,20 @@ HTML の中に Markdown を書くときは前後に空行を入れます。細�
 `scripts/check-overflow.mjs` を直接動かしたときも、`--build-trusted` の資料に lint を流し、error があれば描画せずに終了コード 2 で止まります。
 Marp のディレクティブ（front matter と `<!-- … -->` の中）も検査します。`style`・`backgroundImage`・`_backgroundImage`・`backgroundColor` など値が CSS になるものの `@import`、外部（`https:`・`file:` など）や資料のフォルダの外を読む `url()` は error（`directive.external_ref`）です。HTML コメントの `header`・`footer` の HTML・画像は本文と同じ規則で検査します。
 `watch:trusted` は保存のたびに lint を流し、error が無いときだけ `slides/` をプレビュー用のフォルダ（`.preview-trusted/`。Git に入れない）に写して Marp のサーバーで表示します。error の間はそのフォルダを空にするので、error のある資料は HTML 有効のプレビューに出ません。
+lint の間に保存されても lint していない中身を出さないよう、先に一時フォルダ（`.preview-trusted.staging/`）に写してから lint し、その間に資料（`slides/`・`layouts/`・`assets/`）が変わっていなければ、一時フォルダの中身を出します（変わっていればやり直します）。
 「資料のフォルダの外」は、作業フォルダ（リポジトリ）の中の資料ならリポジトリの外、作業フォルダの外の資料ならその資料のフォルダの外です。
 レイアウトのクラスは Marp と同じく、front matter の `class:` を全スライドの既定にし、`<!-- class: x -->` はそのスライドから後ろに引き継ぎ、`<!-- _class: x -->` はそのスライドだけに効くものとして読みます（見出し不要のレイアウトの判定に使う）。
 拡張子は大文字小文字を区別しません（`SLIDE.MD`・`FIG.SVG` も検査します）。
 検査しないファイルは `exclude` に書きます（既定はリポジトリ直下の `README.md` と `docs/` だけ。`*` は `/` 以外、`**` は何でも）。
+
+## 終了コード
+
+| コード | `npm run lint`（`scripts/lint-slides.mjs`） | はみ出しチェック（`scripts/check-overflow.mjs`） |
+|---|---|---|
+| 0 | 問題なし（warning だけなら 0） | はみ出しなし |
+| 1 | error がある | はみ出しがある |
+| 2 | 引数・設定の誤り | 引数の誤り・資料を変換できない・`--build-trusted` の資料に lint の error |
+| 3 | — | ブラウザを起動できない・同梱フォントを 1 つも読み込めない |
 
 ## 構成
 
@@ -137,13 +147,17 @@ docs/          レイアウト一覧・作成手順
 ## 開発
 
 ```bash
-npm test          # node:test（チェックのスクリプトのテスト）
-npm run lint
-npm run audit     # 依存の既知の脆弱性（high 以上で失敗。上流待ちは config/audit-allowlist.json に理由と期限付き）
+npm test              # node:test（チェックのスクリプトのテスト）
+npm run lint          # スライドの静的チェック
+npm run lint:js       # スクリプトとテストの ESLint（@eslint/js の recommended。warning も失敗）
+npm run format:check  # スクリプトとテストの書式（Prettier。直すときは npm run format）
+npm run audit         # 依存の既知の脆弱性（high 以上で失敗。上流待ちは config/audit-allowlist.json に理由と期限付き）
 ```
 
+ESLint 10 は Node.js 20.19 以上（22 推奨。CI は 22）で動きます。資料の出力だけなら Node.js 20 以上で使えます。
+
 はみ出しのテストは playwright が無いと理由を出してスキップします（CI ではスキップせずに失敗にします）。
-CI は Linux（PDF / PPTX まで出力）と Windows（`npm ci`・静的チェック・テスト・はみ出しチェック・PDF 出力）で動かします。
+CI は Linux（ESLint・Prettier・PDF / PPTX まで出力）と Windows（`npm ci`・静的チェック・テスト・はみ出しチェック・PDF 出力）で動かします。
 
 ## 変更点
 
@@ -159,6 +173,7 @@ CI は Linux（PDF / PPTX まで出力）と Windows（`npm ci`・静的チェ�
 | 2026-10 | スライドの区切りを Marp と同じにした（段落の直後の `---` は区切りではない） | 枚数・行番号の表示が Marp の出力と合うようになる。区切りたいところは `---` の前に空行を入れる |
 | 2026-10 | `watch:trusted` が起動時だけでなく保存のたびに lint し、error の間は HTML 有効のプレビューに出さない。参照形式の画像・`image-set()`・資料のフォルダの外を指すローカルのパスを error にする。front matter と `<!-- class: -->` のクラスの引き継ぎを読む | 該当する画像・CSS をリポジトリの中の相対パスにする |
 | 2026-10 | `npm run check:overflow` を `npm run pdf` と同じ扱い（HTML 無効）で測る。測定用の `build/check` を残さない | `:trusted` で出力する資料は `npm run check:trusted` で測る |
+| 2026-10 | 閉じ括弧の無い `url(`（`style="background:url(https://…"`）も外部の読み込みとして error にする。はみ出しチェックがヘッダー・フッターのスライドの端からのはみ出しも見る | 該当する CSS・ヘッダー・フッターを直す |
 | 2026-10 | Marp のディレクティブ（front matter・HTML コメントの `style`・`backgroundImage`・`_backgroundImage`・`header`・`footer` など）の `@import`・外部や `file:` の `url()` を error にする。`check:overflow:trusted`（と `--build-trusted`）も描画の前に lint を通す | 該当する背景画像・CSS をリポジトリの中の相対パスにする |
 
 ## セキュリティ・ライセンス

@@ -35,22 +35,26 @@ test("CI では playwright が必ずある（はみ出しのテストを黙っ�
   assert.ok(chromium, "playwright を読めません。npm ci と npx playwright install chromium を確認してください");
 });
 
-test("はみ出しの検出（縦・箱の中・横。フッターは対象外）", { skip }, async () => {
+test("はみ出しの検出（縦・箱の中・横・ヘッダーとフッター）", { skip }, async () => {
   const [r] = await check(["tests/fixtures/overflow.html"], () => chromium.launch(exe ? { executablePath: exe } : {}));
-  assert.equal(r.slides, 4);
+  assert.equal(r.slides, 6);
   const bySlide = Object.fromEntries(r.results.map((x) => [x.slide, x.issues.map((i) => i.kind)]));
   assert.equal(bySlide[1], undefined);
   assert.ok(bySlide[2].includes("outside") || bySlide[2].includes("too_tall"));
   assert.ok(bySlide[3].includes("clipped"));
   assert.ok(bySlide[4].includes("outside"));
+  // スライドの中に収まったフッター・余白の中のヘッダーは、はみ出しではない
   assert.ok(!r.results.find((x) => x.slide === 4).issues.some((i) => i.element === "footer"));
+  assert.equal(bySlide[5], undefined);
+  // スライドの端を超えたフッターは、はみ出し（以前はヘッダー・フッターを見ていなかった）
+  const s6 = r.results.find((x) => x.slide === 6);
+  assert.ok(s6 && s6.issues.some((i) => i.kind === "outside" && i.element === "footer"), JSON.stringify(s6));
 });
 
 test("同梱フォントの読み込みを確かめる（読めないフォントは loaded 0）", { skip }, async () => {
   const dir = mkdtempSync(join(tmpdir(), "font-"));
   const sys = ["/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "C:\\Windows\\Fonts\\arial.ttf"].find(existsSync);
-  const page = (src) =>
-    `<style>@font-face{font-family:"T";src:url("${src}")}section{font-family:"T"}</style><section><h1>abc</h1></section>`;
+  const page = (src) => `<style>@font-face{font-family:"T";src:url("${src}")}section{font-family:"T"}</style><section><h1>abc</h1></section>`;
   writeFileSync(join(dir, "missing.html"), page(pathToFileURL(join(dir, "none.woff2")).href));
   const files = [join(dir, "missing.html")];
   if (sys) {
@@ -75,23 +79,37 @@ test("測定用の HTML は一時フォルダに作り、終わったら消す�
   };
   // 成功
   let seen;
-  const r = await withBuild([{ path: src, trusted: false }], async (built, tmp) => {
-    seen = tmp;
-    assert.equal(built.length, 1);
-    assert.equal(built[0].trusted, false);
-    assert.ok(existsSync(built[0].path));
-    return 0;
-  }, { root, convert: fake });
+  const r = await withBuild(
+    [{ path: src, trusted: false }],
+    async (built, tmp) => {
+      seen = tmp;
+      assert.equal(built.length, 1);
+      assert.equal(built[0].trusted, false);
+      assert.ok(existsSync(built[0].path));
+      return 0;
+    },
+    { root, convert: fake },
+  );
   assert.equal(r, 0);
   assert.ok(!existsSync(seen), "成功しても消す");
   // 測定中の例外
-  await assert.rejects(withBuild([{ path: src, trusted: true }], async (_b, tmp) => {
-    seen = tmp;
-    throw new Error("boom");
-  }, { root, convert: fake }), /boom/);
+  await assert.rejects(
+    withBuild(
+      [{ path: src, trusted: true }],
+      async (_b, tmp) => {
+        seen = tmp;
+        throw new Error("boom");
+      },
+      { root, convert: fake },
+    ),
+    /boom/,
+  );
   assert.ok(!existsSync(seen), "例外でも消す");
   // 変換の失敗（終了コード 2）
-  await assert.rejects(withBuild([{ path: src, trusted: true }], async () => 0, { root, convert: async () => 1 }), (e) => e.exitCode === 2);
+  await assert.rejects(
+    withBuild([{ path: src, trusted: true }], async () => 0, { root, convert: async () => 1 }),
+    (e) => e.exitCode === 2,
+  );
   assert.deepEqual(readdirSync(root), [], "一時フォルダが残っていない");
 });
 
@@ -107,7 +125,10 @@ test("測定用の変換は本番の出力と同じオプション（既定は H
   }
   assert.deepEqual(parseArgs(["--build", "slides", "--build-trusted", "layouts/catalog.md", "--format", "json"]), {
     format: "json",
-    sources: [{ path: "slides", trusted: false }, { path: "layouts/catalog.md", trusted: true }],
+    sources: [
+      { path: "slides", trusted: false },
+      { path: "layouts/catalog.md", trusted: true },
+    ],
     html: [],
   });
   assert.throws(() => parseArgs(["--build"]), /--build/);
@@ -121,7 +142,13 @@ test("既定の扱いで測ると HTML は文字として出て、ローカル�
   const html = `<style>@font-face{font-family:"T";src:url("${pathToFileURL(sys).href}")}section{font-family:"T"}</style><section><h1>abc</h1></section>`;
   writeFileSync(join(dir, "a.html"), html);
   const launch = () => chromium.launch(exe ? { executablePath: exe } : {});
-  const [t, u] = await check([{ path: join(dir, "a.html"), trusted: true }, { path: join(dir, "a.html"), trusted: false }], launch);
+  const [t, u] = await check(
+    [
+      { path: join(dir, "a.html"), trusted: true },
+      { path: join(dir, "a.html"), trusted: false },
+    ],
+    launch,
+  );
   assert.equal(t.fonts.loaded, 1);
   assert.equal(u.fonts.loaded, 0);
   assert.equal(u.trusted, false);

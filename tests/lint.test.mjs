@@ -188,11 +188,11 @@ test("markdown-it で数えている（CI では必須）", { skip: !process.env
 // --- 第 2 回の指摘の再現 ---
 
 test("BOM 付きのファイルでも front matter を認識する", () => {
-  const r = runIn({ "slides/bom.md": `﻿${deckHead}# タイトル\n\n本文\n` }, ["slides"], {});
+  const r = runIn({ "slides/bom.md": `\uFEFF${deckHead}# タイトル\n\n本文\n` }, ["slides"], {});
   assert.equal(r.code, 0, JSON.stringify(r.findings));
   assert.deepEqual(r.findings, []);
   // splitSlides も BOM を除く（front matter を本文の 1 枚目と取り違えない）
-  const { front, slides } = splitSlides(`﻿---\nmarp: true\n---\n\n# a\n`);
+  const { front, slides } = splitSlides(`\uFEFF---\nmarp: true\n---\n\n# a\n`);
   assert.equal(front, "marp: true");
   assert.equal(slides.length, 1);
 });
@@ -200,7 +200,7 @@ test("BOM 付きのファイルでも front matter を認識する", () => {
 test("BOM 付きの CRLF のファイル・BOM 付きの設定ファイル", () => {
   const dir = mkdtempSync(join(tmpdir(), "bom-"));
   const p = join(dir, "crlf.md");
-  writeFileSync(p, "﻿---\r\nmarp: true\r\ntheme: standard\r\n---\r\n\r\n# タイトル\r\n");
+  writeFileSync(p, "\uFEFF---\r\nmarp: true\r\ntheme: standard\r\n---\r\n\r\n# タイトル\r\n");
   assert.deepEqual(lintFile(p, conf), []);
   const r = runIn({ "slides/a.md": `${deckHead}# ABC社\n` }, ["slides"], null);
   assert.equal(r.code, 0);
@@ -208,7 +208,7 @@ test("BOM 付きの CRLF のファイル・BOM 付きの設定ファイル", () 
     const d = mkdtempSync(join(tmpdir(), "bomconf-"));
     mkdirSync(join(d, "slides"));
     writeFileSync(join(d, "slides", "a.md"), `${deckHead}# ABC社\n`);
-    writeFileSync(join(d, "slide-lint.json"), `﻿${JSON.stringify({ bannedTerms: ["ABC社"] })}`);
+    writeFileSync(join(d, "slide-lint.json"), `\uFEFF${JSON.stringify({ bannedTerms: ["ABC社"] })}`);
     const cwd = process.cwd();
     const log = console.log;
     console.log = () => {};
@@ -249,7 +249,11 @@ test("SVG の危険な記述: on* 属性・foreignObject・javascript: の href"
 });
 
 test("資料の中に直接書いた SVG の危険な記述も検出する", () => {
-  const r = runIn({ "slides/a.md": `${deckHead}# 図\n\n<svg viewBox="0 0 1 1" onload="alert(1)"><foreignObject><div>x</div></foreignObject></svg>\n` }, ["slides"], {});
+  const r = runIn(
+    { "slides/a.md": `${deckHead}# 図\n\n<svg viewBox="0 0 1 1" onload="alert(1)"><foreignObject><div>x</div></foreignObject></svg>\n` },
+    ["slides"],
+    {},
+  );
   assert.equal(r.code, 1);
   const ids = rules(r.findings).sort();
   assert.deepEqual(ids, ["svg.event_handler", "svg.foreign_object"]);
@@ -334,7 +338,7 @@ test("Markdown の中の HTML: コードとして書いた例・コメント・�
     "```",
     "",
     "~~~",
-    "<a href=\"javascript:x()\">x</a>",
+    '<a href="javascript:x()">x</a>',
     "~~~",
     "",
     "<!-- <script>メモ</script> -->",

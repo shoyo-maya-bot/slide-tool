@@ -21,21 +21,25 @@ export function svgDangers(text, ctx = null) {
   const events = new Set(tags.flatMap((t) => t.attrs.filter((a) => isEventAttr(a.name)).map((a) => a.name)));
   if (events.size) add("svg.event_handler", `イベント属性（${[...events].join(", ")}）を含めないでください（読み込み・クリックでスクリプトが動きます）`);
   if (/<foreignObject\b/i.test(text)) add("svg.foreign_object", "foreignObject を含めないでください（中の HTML が動きます。文字は <text> で書きます）");
-  if (tags.some((t) => t.attrs.some((a) => isJavascriptUrl(a.value)))) add("svg.javascript_url", "javascript:・vbscript:・data:（画像以外）の URL を含めないでください");
+  if (tags.some((t) => t.attrs.some((a) => isJavascriptUrl(a.value))))
+    add("svg.javascript_url", "javascript:・vbscript:・data:（画像以外）の URL を含めないでください");
   // 許可の一覧に無い要素（script・foreignObject は上で個別に出す）
   // foreignObject の中の HTML は foreignObject として出すので、要素の一覧の検査からは外す
   const outsideFo = scanTags(text.replace(/<foreignObject\b[\s\S]*?(<\/foreignObject\s*>|$)/gi, " "));
   const other = new Set(outsideFo.map((t) => t.name).filter((n) => isTagName(n) && !SVG_ELEMENTS.has(n) && n !== "script"));
-  if (other.size) add("svg.disallowed_element", `SVG で使えない要素（${[...other].join(", ")}）があります（使えるものは scripts/lint/allowlist.mjs の SVG_ELEMENTS）`);
+  if (other.size)
+    add("svg.disallowed_element", `SVG で使えない要素（${[...other].join(", ")}）があります（使えるものは scripts/lint/allowlist.mjs の SVG_ELEMENTS）`);
   // 外部の URL を読む参照（href・xlink:href・src）と、style 属性・<style> の中の @import・外部の url()
   const refs = tags.flatMap((t) => t.attrs.filter((a) => /^(xlink:)?href$|^src$/.test(a.name)).map((a) => a.value));
   if (refs.some((v) => isExternalUrl(v))) {
     add("svg.external_ref", "外部 URL を参照しています（PDF / PPTX で表示されず、:trusted では外部に読みに行きます）");
   }
   const outside = refs.filter((v) => isOutsidePath(v, ctx));
-  if (outside.length) add("svg.external_ref", `資料のフォルダの外のファイルを参照しています（${outside[0].slice(0, 60)}）。:trusted ではローカルのファイルを読みます`);
+  if (outside.length)
+    add("svg.external_ref", `資料のフォルダの外のファイルを参照しています（${outside[0].slice(0, 60)}）。:trusted ではローカルのファイルを読みます`);
   const css = [...tags.flatMap((t) => t.attrs.filter((a) => a.name === "style").map((a) => decodeEntities(a.value))), ...styleBodies(text).map((b) => b.css)];
-  if (css.some((c) => cssDangers(c, ctx).length)) add("svg.external_ref", "CSS の @import・外部や資料のフォルダの外を読む url()・image-set() を含めないでください");
+  if (css.some((c) => cssDangers(c, ctx).length))
+    add("svg.external_ref", "CSS の @import・外部や資料のフォルダの外を読む url()・image-set() を含めないでください");
   return out;
 }
 
@@ -52,8 +56,10 @@ export function htmlDangers(text, ctx = null) {
   for (const t of scanTags(text)) {
     if (t.name === "script") add("html.script", "script を含めないでください（:trusted で出力するとスクリプトが動きます）", t.index);
     const events = t.attrs.filter((a) => isEventAttr(a.name)).map((a) => a.name);
-    if (events.length) add("html.event_handler", `<${t.name}> のイベント属性（${events.join(", ")}）を含めないでください（:trusted で出力するとスクリプトが動きます）`, t.index);
-    if (t.attrs.some((a) => isJavascriptUrl(a.value))) add("html.javascript_url", `<${t.name}> に javascript:・vbscript:・data:（画像以外）の URL を含めないでください`, t.index);
+    if (events.length)
+      add("html.event_handler", `<${t.name}> のイベント属性（${events.join(", ")}）を含めないでください（:trusted で出力するとスクリプトが動きます）`, t.index);
+    if (t.attrs.some((a) => isJavascriptUrl(a.value)))
+      add("html.javascript_url", `<${t.name}> に javascript:・vbscript:・data:（画像以外）の URL を含めないでください`, t.index);
   }
   // Markdown のリンク・画像 [x](javascript:…) と自動リンク <javascript:…>
   for (const m of text.matchAll(/\]\(\s*<?([^)>]*)|<([a-zA-Z][a-zA-Z0-9+.-]{1,31}:[^\s<>]*)>/g)) {
@@ -82,22 +88,30 @@ export function htmlAllowlistFindings(text, ctx = null) {
     if (!isTagName(t.name)) continue; // <https://…> などの自動リンク
     if (t.name === "script") continue; // html.script で出す
     if (!HTML_ELEMENTS.has(t.name)) {
-      add("html.disallowed_element", `<${t.name}> は使えません（使える要素は scripts/lint/allowlist.mjs の HTML_ELEMENTS。:trusted で出力すると動きます）`, t.index);
+      add(
+        "html.disallowed_element",
+        `<${t.name}> は使えません（使える要素は scripts/lint/allowlist.mjs の HTML_ELEMENTS。:trusted で出力すると動きます）`,
+        t.index,
+      );
       continue;
     }
     const bad = t.attrs.filter((a) => !isEventAttr(a.name) && !htmlAttrAllowed(t.name, a.name)).map((a) => a.name);
     if (bad.length) add("html.disallowed_attribute", `<${t.name}> に使えない属性（${bad.join(", ")}）があります（scripts/lint/allowlist.mjs）`, t.index);
     for (const a of t.attrs) {
-      if (t.name === "img" && a.name === "src" && isExternalUrl(a.value)) add("html.external_resource", `<img> が外部の画像を読みます（${a.value.slice(0, 60)}）。画像はリポジトリに置きます`, t.index);
-      if (t.name === "img" && a.name === "src" && isOutsidePath(a.value, ctx)) add("html.external_resource", `<img> が資料のフォルダの外のファイルを読みます（${a.value.slice(0, 60)}）。画像はリポジトリに置きます`, t.index);
-      if (a.name === "style") for (const d of cssDangers(decodeEntities(a.value), ctx)) add("html.external_resource", `<${t.name}> の style 属性: ${d}`, t.index);
+      if (t.name === "img" && a.name === "src" && isExternalUrl(a.value))
+        add("html.external_resource", `<img> が外部の画像を読みます（${a.value.slice(0, 60)}）。画像はリポジトリに置きます`, t.index);
+      if (t.name === "img" && a.name === "src" && isOutsidePath(a.value, ctx))
+        add("html.external_resource", `<img> が資料のフォルダの外のファイルを読みます（${a.value.slice(0, 60)}）。画像はリポジトリに置きます`, t.index);
+      if (a.name === "style")
+        for (const d of cssDangers(decodeEntities(a.value), ctx)) add("html.external_resource", `<${t.name}> の style 属性: ${d}`, t.index);
     }
   }
   for (const b of styleBodies(text)) for (const d of cssDangers(b.css, ctx)) add("html.external_resource", `<style>: ${d}`, b.index);
   // Markdown の画像（インライン・参照形式. リンク [..](https://…) は読み込まないので可）
   for (const img of markdownImages(text)) {
     if (isExternalUrl(img.src)) add("html.external_resource", `画像が外部の URL を読みます（${img.src.slice(0, 60)}）。画像はリポジトリに置きます`, img.index);
-    else if (isOutsidePath(img.src, ctx)) add("html.external_resource", `画像が資料のフォルダの外のファイルを読みます（${img.src.slice(0, 60)}）。画像はリポジトリに置きます`, img.index);
+    else if (isOutsidePath(img.src, ctx))
+      add("html.external_resource", `画像が資料のフォルダの外のファイルを読みます（${img.src.slice(0, 60)}）。画像はリポジトリに置きます`, img.index);
   }
   return out;
 }
@@ -159,7 +173,9 @@ export function cssDangers(css, ctx = null) {
     if (isExternalUrl(v)) out.push(`外部の ${kind} は使えません（${v.slice(0, 60)}）`);
     else if (isOutsidePath(v, ctx)) out.push(`資料のフォルダの外を読む ${kind} は使えません（${v.slice(0, 60)}）`);
   };
-  for (const m of c.matchAll(/url\(\s*(['"]?)([^'")]*)\1\s*\)/gi)) check(m[2], "url()");
+  // 閉じ括弧・閉じ引用符が無くても見る（CSS の構文では、文字列や url( は入力の終わりで閉じたものとして扱われ、
+  // Chromium は style 属性の末尾の url(https://… を読みに行く）. 引用符の中は閉じ引用符か終わりまで、引用符なしは ) か空白か終わりまで
+  for (const m of c.matchAll(/url\(\s*(?:(['"])([\s\S]*?)(?:\1|$)|([^'"()\s]*))/gi)) check(m[2] ?? m[3], "url()");
   // image-set("https://…" 1x) / -webkit-image-set(…): url() を使わずに文字列で読み込み先を書ける
   for (const m of c.matchAll(/image-set\(((?:[^()]|\([^()]*\))*)\)?/gi)) {
     // 中の url(…) は上で見ているので、それ以外の文字列だけを見る
@@ -182,7 +198,9 @@ const isTagName = (name) => /^[a-z][a-z0-9]*$/.test(name);
  * 相対パス・ページ内の #…・data:image（png・jpeg・gif・webp）は外部ではない. javascript: などは別の規則で出す
  */
 export function isExternalUrl(value) {
-  const v = decodeEntities(value ?? "").replace(/[\s\u0000-\u001f]/g, "").toLowerCase();
+  const v = decodeEntities(value ?? "")
+    .replace(/[\s\p{Cc}]/gu, "")
+    .toLowerCase();
   if (!v || v.startsWith("#")) return false;
   if (v.startsWith("//") || v.startsWith("\\\\")) return true;
   if (/^data:image\/(png|jpe?g|gif|webp)[;,]/.test(v)) return false;
@@ -196,7 +214,7 @@ export function isExternalUrl(value) {
  * ctx が無いときは、絶対パス（/…・\…）だけを外とみなす
  */
 export function isOutsidePath(value, ctx = null) {
-  let v = decodeEntities(value ?? "").replace(/[\s\u0000-\u001f]/g, "");
+  let v = decodeEntities(value ?? "").replace(/[\s\p{Cc}]/gu, "");
   if (!v || v.startsWith("#") || v.startsWith("//") || v.startsWith("\\\\")) return false;
   if (/^[a-z][a-z0-9+.-]*:/i.test(v)) return false;
   v = v.replace(/[?#].*$/, "");
@@ -231,7 +249,9 @@ export const isEventAttr = (name) => /^on[a-z]+$/i.test(name);
  * 空白・制御文字・大文字・文字参照で書いたものも含む
  */
 export function isJavascriptUrl(value) {
-  const v = decodeEntities(value).replace(/[\s\u0000-\u001f]/g, "").toLowerCase();
+  const v = decodeEntities(value)
+    .replace(/[\s\p{Cc}]/gu, "")
+    .toLowerCase();
   if (v.startsWith("javascript:") || v.startsWith("vbscript:")) return true;
   return v.startsWith("data:") && !/^data:image\/(png|jpe?g|gif|webp)[;,]/.test(v);
 }
@@ -296,9 +316,11 @@ export function directiveDangers(text, { front = "", frontOffset = 0, ctx = null
     for (const e of entries) {
       const at = base + e.offset;
       if (CSS_DIRECTIVES.test(e.key)) {
-        for (const d of cssDangers(e.value, ctx)) out.push({ rule_id: "directive.external_ref", severity: "error", message: `ディレクティブ ${e.key}: ${d}`, index: at });
+        for (const d of cssDangers(e.value, ctx))
+          out.push({ rule_id: "directive.external_ref", severity: "error", message: `ディレクティブ ${e.key}: ${d}`, index: at });
       } else if (fromComment && MARKDOWN_DIRECTIVES.test(e.key)) {
-        for (const d of htmlDangers(e.value, ctx)) out.push({ rule_id: d.rule_id, severity: "error", message: `ディレクティブ ${e.key}: ${d.message}`, index: at });
+        for (const d of htmlDangers(e.value, ctx))
+          out.push({ rule_id: d.rule_id, severity: "error", message: `ディレクティブ ${e.key}: ${d.message}`, index: at });
       }
     }
   };
