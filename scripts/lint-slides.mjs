@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // スライドの Markdown を静的に検査する（描画しない）.
 //   node scripts/lint-slides.mjs slides layouts assets [--format json] [--config config/slide-lint.json]
-// 終了コード: 0 問題なし（warning のみを含む）/ 1 error あり / 2 引数・設定の誤り
+// 終了コード: 0 問題なし（warning のみを含む）/ 1 error あり / 2 引数・設定の誤り（不明なオプション、--config のファイルが無い、対象がどれも無い）
+// フォルダのシンボリックリンクもたどる（同じフォルダは 1 回だけ。自分を指すリンクで無限に再帰しない）
 //
 // 見出しと箇条書きは、Marp と同じ markdown-it（package-lock.json で固定）のトークンで数える（コードブロックの中は数えない）。
 // markdown-it を読めないとき（npm ci の前）は警告を出し、コードブロックを除いた行で数える。CI（環境変数 CI）では失敗にする。
