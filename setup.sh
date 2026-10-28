@@ -5,4 +5,4 @@ cd "$(dirname "$0")"
 npm ci --no-audit --no-fund   # package-lock.json の版どおりに入れる（同梱フォントを含む）
 npx playwright install chromium
 npm run theme
-echo "完了: npm run check / npm run pdf"
+echo "完了: npm run check:trusted / npm run pdf:trusted（同梱のサンプルは自分たちで作った資料なので :trusted。README の「すぐ使う」）"

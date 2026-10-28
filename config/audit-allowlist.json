@@ -24,6 +24,12 @@
       "package": "basic-ftp",
       "reason": "marp-cli → puppeteer-core → proxy-agent → get-uri の ftp: 対応。修正版が無い。FTP のプロキシ設定（PAC）は使わない",
       "until": "2027-01-08"
+    },
+    {
+      "id": "GHSA-mrhx-c7xc-m3w5",
+      "package": "zod",
+      "reason": "marp-cli 4.5.1（最新）→ puppeteer-core 24.43.1（marp-cli が ^24 を要求する最新）→ chromium-bidi 14.0.0 → zod 3.25.76。修正は zod 4.6.6 以上だけで、chromium-bidi 14 は zod ^3 を要求するため上げられない（zod 4 を使う chromium-bidi は puppeteer-core 25 から）。zod が検証するのは手元で起動した Chromium との通信（WebDriver BiDi）だけで、外からの入力は渡さない。marp-cli が puppeteer-core 25 に上がったら外す",
+      "until": "2027-01-08"
     }
   ]
 }

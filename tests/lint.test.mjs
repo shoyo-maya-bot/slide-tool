@@ -90,7 +90,7 @@ function runIn(files, args, config) {
   console.error = (s) => (stderr += `${s}\n`);
   try {
     process.chdir(dir);
-    const code = main([...args, "--format", "json", "--config", "slide-lint.json"]);
+    const code = main([...args, "--format", "json", ...(config ? ["--config", "slide-lint.json"] : [])]);
     return { code, findings: out ? JSON.parse(out).findings : [], stderr };
   } finally {
     process.chdir(cwd);
